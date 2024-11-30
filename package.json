@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "History Bowl Question Reader",
   "main": "main.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "start": "node main.js",
     "dev": "nodemon main.js"
