@@ -9,8 +9,7 @@
   },
   "scripts": {
     "start": "node main.js",
-    "dev": "nodemon main.js",
-    "postinstall": "npm install"
+    "dev": "nodemon main.js"
   },
   "dependencies": {
     "express": "^4.18.2"
