@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History Bowl</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+        }
+
+        .container-fluid {
+            padding: 2rem;
+        }
+
+        h1 {
+            color: #1a237e;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+
+        #question {
+            margin: 2rem auto;
+            font-size: 1.5em;
+            padding: 2rem;
+            border: none;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            line-height: 1.8;
+        }
+
+        #set-name {
+            color: #555;
+            font-size: 1.1em;
+        }
+
+        #set-name a {
+            color: #1565c0;
+            text-decoration: none;
+        }
+
+        .btn {
+            border-radius: 8px;
+            padding: 0.5rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-danger {
+            background-color: #d32f2f;
+        }
+
+        .btn-primary {
+            background-color: #1976d2;
+        }
+
+        .btn-secondary {
+            background-color: #455a64;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #answer {
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1.1em;
+            border: 2px solid #e0e0e0;
+            transition: border-color 0.3s ease;
+        }
+
+        #answer:focus {
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        #speed {
+            width: 200px;
+            margin: 0 10px;
+        }
+
+        #setType {
+            padding: 8px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+
+        #result {
+            font-size: 1.2em;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        #questionHistory {
+            font-family: 'Consolas', monospace;
+            padding: 1rem;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-top: 2rem;
+        }
+
+        .word {
+            margin-right: 6px;
+            display: inline-block;
+        }
+
+        .emphasized {
+            color: #ff0000;
+            font-weight: 600;
+        }
+
+        #past-answers {
+            background-color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        #past-answers div {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        #past-answers div:last-child {
+            border-bottom: none;
+        }
+
+        .word.hidden {
+            visibility: hidden;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-5">        
+        <div id="set-name" class="text-center mb-3"></div>
+        <div id="question" class="text-center"></div>
+        <div class="form-group">
+            <div class="d-flex justify-content-center gap-2 mb-2">
+                <button id="buzz" class="btn btn-danger" style="margin-right: 10px;">Buzz (space)</button>
+                <button id="submit" class="btn btn-primary" style="margin-right: 10px;">Submit (enter)</button>
+                <button id="next" class="btn btn-secondary hidden">Next Question (j)</button>
+            </div>
+            <div id="result" class="text-center"></div>
+            <div id="past-answers" class="text-center"></div>
+            <input type="text" id="answer" class="form-control" placeholder="Answer here" disabled />
+        </div>
+        <div class="mt-3">
+            <label for="speed">Speed:</label>
+            <input type="range" id="speed" min="600" max="1000" value="800" />
+        </div>
+        <div class="mt-3 mb-3">
+            <label class="mr-2">Question Sets:</label>
+            <select id="setType" class="form-control-md">
+                <option value="all">All Sets</option>
+                <option value="nationals">Nationals Only</option>
+                <option value="regionals">Regionals Only</option>
+            </select>
+        </div>
+        
+        <div class="mt-3">
+            <textarea id="questionHistory" class="form-control" rows="10" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = {};
+        let currentIndex = 0;
+        let words = [];
+        let intervalId;
+
+        async function fetchQuestion() {
+            const setType = document.getElementById('setType').value;
+            const response = await fetch(`/api/question?setType=${setType}`);
+            currentQuestion = await response.json();
+            
+            // Strip HTML tags and get clean text
+            const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
+            words = cleanQuestion.split(/\s+/);
+            
+            currentIndex = 0;
+            document.getElementById('result').innerText = '';
+            document.getElementById('past-answers').innerText = '';
+            
+            // Pre-load the question with all words hidden
+            const questionDiv = document.getElementById('question');
+            questionDiv.innerHTML = words.map((word, index) => {
+                return `<span class="word hidden">${word}</span>`;
+            }).join(' ');
+            
+            document.getElementById('set-name').innerHTML = `Set: ${currentQuestion.setName} <a href="${currentQuestion.pdfLink}" target="_blank">PDF</a>`;
+            startDisplayingWords();
+        }
+
+        function startDisplayingWords() {
+            const sliderValue = document.getElementById('speed').value;
+            const speed = 1100 - sliderValue;
+            intervalId = setInterval(displayNextWord, speed);
+        }
+
+        function displayNextWord() {
+            if (currentIndex < words.length) {
+                const wordElements = document.querySelectorAll('#question .word');
+                wordElements[currentIndex].classList.remove('hidden');
+                currentIndex++;
+            } else {
+                clearInterval(intervalId);
+                document.getElementById('next').classList.remove('hidden');
+            }
+        }
+
+        function disableSubmit() {
+            document.getElementById('submit').classList.add('hidden');
+            document.getElementById('answer').disabled = true;
+        }
+
+        function enableSubmit() {
+            document.getElementById('submit').classList.remove('hidden');
+            document.getElementById('answer').disabled = false;
+        }
+
+        // Update the submit event listener
+        document.getElementById('submit').addEventListener('click', async () => {
+            const userAnswer = document.getElementById('answer').value.toLowerCase().trim();
+            const correctAnswer = currentQuestion.answer;
+
+            // Extract all bolded/underlined parts from the answer
+            const boldedParts = correctAnswer.match(/<b>.*?<\/b>|<b><u>.*?<\/u><\/b>/g) || [];
+            const acceptableAnswers = boldedParts.map(part => 
+                part.replace(/<\/?[bu]>/g, '').toLowerCase().trim()
+            );
+
+            const isCorrect = acceptableAnswers.some(answer => 
+                userAnswer === answer || 
+                userAnswer.includes(answer) || 
+                answer.includes(userAnswer)
+            );
+
+            if (isCorrect) {
+                document.getElementById('result').innerText = "Correct!";
+            } else {
+                document.getElementById('result').innerText = "Incorrect!";
+            }
+            
+            document.getElementById('past-answers').innerHTML += `
+                <div class="border-bottom pb-2 mb-2">
+                    <strong>Question:</strong> ${currentQuestion.question}<br>
+                    <strong>Your Answer:</strong> ${userAnswer}<br>
+                    <strong>Correct Answer:</strong> ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}<br>
+                    <strong>Set:</strong> ${currentQuestion.setName}
+                </div>
+            `;
+            document.getElementById('questionHistory').value += 
+            `Question: ${currentQuestion.question.replace(/<[^>]+>/g, '')}\n` +
+            `Your Answer: ${userAnswer}\n` +
+            `Correct Answer: ${correctAnswer.replace(/<[^>]+>/g, '')}\n` +
+            `Set: ${currentQuestion.setName}\n\n`;
+            document.getElementById('next').classList.remove('hidden');
+            disableSubmit();
+        });
+
+        // Add 'j' key listener for next question
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'j' && !document.getElementById('next').classList.contains('hidden')) {
+                document.getElementById('next').click();
+            }
+        });
+
+        // Update next question event listener
+        document.getElementById('next').addEventListener('click', () => {
+            document.getElementById('question').innerHTML = '';
+            document.getElementById('answer').value = '';
+            document.getElementById('next').classList.add('hidden');
+            enableSubmit();
+            fetchQuestion();
+        });
+
+        document.getElementById('answer').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                document.getElementById('submit').click();
+            }
+        });
+
+        document.getElementById('speed').addEventListener('input', (event) => {
+            if (intervalId) {
+                clearInterval(intervalId);
+                const sliderValue = event.target.value;
+                const speed = 1100 - sliderValue;
+                intervalId = setInterval(displayNextWord, speed);
+            }
+        });
+
+        // Handle buzz button and spacebar
+        function handleBuzz() {
+            if (intervalId) {
+                clearInterval(intervalId);
+                const answerInput = document.getElementById('answer');
+                answerInput.disabled = false;
+                answerInput.focus();
+                document.getElementById('buzz').disabled = true;
+                document.getElementById('submit').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('buzz').addEventListener('click', handleBuzz);
+
+        // Add spacebar listener for buzz
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && !event.repeat && !document.getElementById('answer').matches(':focus')) {
+                event.preventDefault();
+                handleBuzz();
+            }
+        });
+
+        // Reset buzz button on next question
+        document.getElementById('next').addEventListener('click', () => {
+            document.getElementById('buzz').disabled = false;
+            document.getElementById('answer').disabled = true;
+        });
+
+        // Fetch a question when the page loads
+        fetchQuestion();
+    </script>
+</body>
+</html>
