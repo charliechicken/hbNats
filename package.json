@@ -4,11 +4,13 @@
   "description": "History Bowl Question Reader",
   "main": "main.js",
   "engines": {
-    "node": "18.x"
+    "node": "18.x",
+    "npm": "10.x"
   },
   "scripts": {
     "start": "node main.js",
-    "dev": "nodemon main.js"
+    "dev": "nodemon main.js",
+    "postinstall": "npm install"
   },
   "dependencies": {
     "express": "^4.18.2"
