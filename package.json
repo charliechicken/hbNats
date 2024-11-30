@@ -1,23 +1,7 @@
 {
-  "name": "parsedhb",
-  "version": "1.0.0",
-  "description": "History Bowl Question Reader",
-  "main": "main.js",
-  "engines": {
-    "node": "18.x",
-    "npm": "10.x"
-  },
-  "scripts": {
-    "start": "node main.js",
-    "dev": "nodemon main.js"
-  },
   "dependencies": {
-    "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+    "express": "^4.21.1",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7"
+  }
 }
