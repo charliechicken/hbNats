@@ -1672,28 +1672,35 @@
         });
 
         async function searchQuestions() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const searchInput = document.getElementById('searchInput').value.trim();
             const searchType = document.querySelector('input[name="searchType"]:checked').value;
             
-            if (!searchTerm) return;
+            if (!searchInput) return;
             
             const searchResults = document.getElementById('searchResults');
             $('#resultsModal').modal('show');
             
-            const searchTerms = searchTerm.split(' ').filter(term => term.length > 0);
+            // Split by commas and create RegExp patterns for each group
+            const searchTermGroups = searchInput.split(',').map(group => {
+                const phrase = group.trim();
+                // Escape special regex characters and create word boundary pattern
+                const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                return new RegExp(`\\b${escapedPhrase}\\b`, 'i');
+            });
             
             matches = allQuestions.filter(q => {
-                const questionText = (q.question || '').toLowerCase().replace(/<[^>]+>/g, '');
-                const answerText = (q.answer || '').toLowerCase().replace(/<[^>]+>/g, '');
+                const questionText = (q.question || '').replace(/<[^>]+>/g, '');
+                const answerText = (q.answer || '').replace(/<[^>]+>/g, '');
                 
-                return searchTerms.every(term => {
+                // Check if ANY of the comma-separated patterns match
+                return searchTermGroups.some(pattern => {
                     switch (searchType) {
                         case 'question':
-                            return questionText.includes(term);
+                            return pattern.test(questionText);
                         case 'answer':
-                            return answerText.includes(term);
+                            return pattern.test(answerText);
                         default: // 'both'
-                            return questionText.includes(term) || answerText.includes(term);
+                            return pattern.test(questionText) || pattern.test(answerText);
                     }
                 });
             });
@@ -2496,7 +2503,7 @@
                     if (buzzBtn && !buzzBtn.disabled) handleBuzz();
                 } else if (e.code === 'KeyJ' && !e.repeat) {
                     const nextBtn = document.getElementById('next');
-                    if (nextBtn && !nextBtn.disabled) nextQuestion();
+                    if (nextBtn && !nextBtn.disabled) goToNextPractice();
                 }
             }
         });
