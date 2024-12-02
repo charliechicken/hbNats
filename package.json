@@ -8,11 +8,15 @@
     "npm": "10.x"
   },
   "scripts": {
-    "start": "node main.js"
+    "start": "node main.js",
+    "dev": "nodemon main.js"
   },
   "dependencies": {
+    "@huggingface/inference": "^2.8.1",
+    "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "fs": "^0.0.1-security",
+    "openai": "^4.73.1",
     "path": "^0.12.7"
   },
   "devDependencies": {

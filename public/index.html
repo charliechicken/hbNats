@@ -1,19 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>History Bowl</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #f0f2f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>History Bowl</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        
+        <!-- Firebase SDKs -->
+        <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+        <script>
+        // Wait for Firebase SDKs to load
+        window.onload = function() {
+            // Firebase configuration
+            const firebaseConfig = {
+                apiKey: "AIzaSyA_bM4yUQkO0ZPowDtfysAhIU7YmNsHmQc",
+                authDomain: "historybowl-4440f.firebaseapp.com",
+                projectId: "historybowl-4440f",
+                databaseURL: "https://historybowl-4440f-default-rtdb.firebaseio.com"
+            };
+
+            // Initialize Firebase
+            firebase.initializeApp(firebaseConfig);
+
+            // Make Firebase services available globally
+            window.auth = firebase.auth();
+            window.db = firebase.database();
+
+            // Add debug logging
+            console.log('Firebase initialized');
+            window.auth.onAuthStateChanged((user) => {
+                console.log('Auth state changed:', user ? user.uid : 'logged out');
+            });
+            
+            // Test Firebase connection
+            window.db.ref().once('value')
+                .then(() => console.log('Realtime Database connected'))
+                .catch(error => console.error('Database error:', error));
+
+            // Auth state observer
+            window.auth.onAuthStateChanged(async (user) => {
+                const authButton = document.getElementById('authButton');
+                const userStats = document.getElementById('userStats');
+                const usernameDisplay = document.getElementById('usernameDisplay');
+                
+                if (user) {
+                    authButton.textContent = 'Sign Out';
+                    userStats.style.display = 'block';
+                    
+                    // Listen for realtime updates
+                    const userRef = window.db.ref('users/' + user.uid);
+                    userRef.on('value', (snapshot) => {
+                        const userData = snapshot.val() || { 
+                            progress: { correctAnswers: 0, questionsAnswered: 0 },
+                            username: 'User'
+                        };
+                        document.getElementById('correctCount').textContent = userData.progress.correctAnswers;
+                        document.getElementById('totalCount').textContent = userData.progress.questionsAnswered;
+                        usernameDisplay.textContent = userData.username;
+                    });
+                } else {
+                    authButton.textContent = 'Sign In';
+                    userStats.style.display = 'none';
+                    usernameDisplay.textContent = '';
+                }
+            });
+        };
+
+        // Firebase helper functions
+        async function loadUserProgress(userId) {
+            try {
+                const userRef = window.db.ref('users/' + userId);
+                const snapshot = await userRef.once('value');
+                const data = snapshot.val();
+                
+                if (data?.progress?.history) {
+                    const historyDiv = document.getElementById('questionHistory');
+                    historyDiv.style.display = 'block';  // Make sure history is visible
+                    historyDiv.innerHTML = '';  // Clear existing history
+                    
+                    // Add each history entry as a card
+                    data.progress.history.forEach(entry => {
+                        const card = document.createElement('div');
+                        card.className = `history-card ${entry.isCorrect ? 'correct' : 'incorrect'}`;
+                        
+                        card.innerHTML = `
+                            <div class="question-text">${entry.question}</div>
+                            <div class="answer-section">
+                                <div>
+                                    <span class="user-answer">Your answer: ${entry.userAnswer}</span>
+                                </div>
+                                <div>
+                                    <span class="correct-answer">Correct answer: ${entry.answer.replace(/<\/?[^>]+(>|$)/g, '')}</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        historyDiv.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading progress:", error);
+            }
         }
 
+        async function saveUserProgress(questionData) {
+    const user = window.auth.currentUser;
+    if (!user) return;
+
+    try {
+        const userRef = window.db.ref('users/' + user.uid);
+        
+        // Get current data
+        const snapshot = await userRef.once('value');
+        const currentData = snapshot.val() || {
+            email: user.email,
+            username: '',
+            progress: {
+                questionsAnswered: 0,
+                correctAnswers: 0,
+                history: []
+            }
+        };
+
+        // Update progress while preserving username
+        const updatedProgress = {
+            questionsAnswered: (currentData.progress.questionsAnswered || 0) + 1,
+            correctAnswers: (currentData.progress.correctAnswers || 0) + (questionData.isCorrect ? 1 : 0),
+            history: [questionData, ...(currentData.progress.history || []).slice(0, 49)]
+        };
+
+        // Save to database
+        await userRef.set({
+            email: user.email,
+            username: currentData.username,
+            progress: updatedProgress
+        });
+
+        console.log('Database updated:', updatedProgress);
+    } catch (error) {
+        console.error("Error saving to database:", error);
+    }
+}
+        </script>
+
+    <style>
+        .badge {
+    font-size: 0.9em;
+    padding: 0.5em 0.8em;
+}
+
+.bg-success {
+    background-color: #28a745 !important;
+}
+
+.bg-primary {
+    background-color: #007bff !important;
+}
+
+.me-2 {
+            margin-right: 0.5rem !important;
+        }
+
+        body {
+            background-color: #f0f2f5;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a237e' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+}
+
         .container-fluid {
-            padding: 2rem;
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            max-width: 1600px;
+            margin: 0 auto;
         }
 
         h1 {
@@ -99,12 +263,62 @@
         }
 
         #questionHistory {
-            font-family: 'Consolas', monospace;
+            font-family: 'Inter', sans-serif;
             padding: 1rem;
             border-radius: 8px;
             background-color: #fff;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             margin-top: 2rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .history-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .history-card.correct {
+            border-left-color: #28a745;
+        }
+
+        .history-card.incorrect {
+            border-left-color: #dc3545;
+        }
+
+        .history-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .history-card .question-text {
+            font-size: 0.9em;
+            color: #343a40;
+            margin-bottom: 8px;
+        }
+
+        .history-card .answer-section {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .history-card .correct-answer {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .history-card .user-answer {
+            color: #666;
+        }
+
+        .history-card .incorrect .user-answer {
+            color: #dc3545;
         }
 
         .word {
@@ -117,22 +331,6 @@
             font-weight: 600;
         }
 
-        #past-answers {
-            background-color: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem 0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-
-        #past-answers div {
-            padding: 1rem;
-            border-bottom: 1px solid #eee;
-        }
-
-        #past-answers div:last-child {
-            border-bottom: none;
-        }
 
         .word.hidden {
             visibility: hidden;
@@ -141,67 +339,1112 @@
         .hidden {
             display: none;
         }
+
+        .navbar {
+            margin-bottom: .5rem;
+            padding: 8px 1rem;
+        }
+
+        .modal-dialog.modal-lg {
+            max-width: 800px;
+        }
+
+        #searchResults .card {
+            transition: all 0.3s ease;
+        }
+
+        #searchResults .card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        #searchResults {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-body {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 2rem;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        mark {
+            background-color: #fff3cd;
+            padding: 0.2em;
+            border-radius: 3px;
+        }
+
+        .btn-group-toggle .btn {
+            margin-right: 5px;
+        }
+
+        .btn-group-toggle .btn:last-child {
+            margin-right: 0;
+        }
+
+        .btn-outline-primary:not(:disabled):not(.disabled).active {
+            background-color: #1976d2;
+            border-color: #1976d2;
+        }
+
+        #categoryType {
+            padding: 8px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            width: auto;
+            min-width: 400px;
+            background-color: white;
+            font-size: 0.85em;
+        }
+
+        #categoryType:focus {
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+            outline: none;
+        }
+
+        .category-label {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+
+        #questionHistory .mb-3 {
+            background-color: #f8f9fa;
+            transition: background-color 0.2s ease;
+        }
+
+        #questionHistory .mb-3:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* Enhanced history cards */
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Enhanced result alerts */
+        .alert {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .audio-off {
+            background-color: #ff4444;
+            color: white;
+        }
+
+        .audio-on {
+            background-color: #00C851;
+            color: white;
+        }
+
+        .card.history-bowl {
+            background-color: #fffff0;  /* Light yellow */
+        }
+
+        .card.history-bee {
+            background-color: #f8f0ff;  /* Light violet */
+        }
+
+        /* Practice mode styles */
+        .practice-modal {
+            background-color: #f0f2f5;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .practice-modal .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .practice-modal .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .practice-modal .btn {
+            border-radius: 8px;
+            padding: 0.5rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .practice-modal .btn-danger {
+            background-color: #d32f2f;
+        }
+
+        .practice-modal .btn-primary {
+            background-color: #1976d2;
+        }
+
+        .practice-modal .btn-secondary {
+            background-color: #455a64;
+        }
+
+        .practice-modal .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .practice-modal #answer {
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1.1em;
+            border: 2px solid #e0e0e0;
+            transition: border-color 0.3s ease;
+        }
+
+        .practice-modal #answer:focus {
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        .practice-modal #speed {
+            width: 200px;
+            margin: 0 10px;
+        }
+
+        .practice-modal #result {
+            font-size: 1.2em;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .practice-modal .word {
+            margin-right: 6px;
+            display: inline-block;
+        }
+
+        .practice-modal .emphasized {
+            color: #ff0000;
+            font-weight: 600;
+        }
+
+        .practice-modal .word.hidden {
+            visibility: hidden;
+        }
+
+        .practice-modal .hidden {
+            display: none;
+        }
+
+        .practice-modal .modal-dialog.modal-lg {
+            max-width: 800px;
+        }
+
+        .practice-modal #searchResults .card {
+            transition: all 0.3s ease;
+        }
+
+        .practice-modal #searchResults .card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .practice-modal #searchResults {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .practice-modal .modal-body {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .practice-modal .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 2rem;
+        }
+
+        .practice-modal .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .practice-modal mark {
+            background-color: #fff3cd;
+            padding: 0.2em;
+            border-radius: 3px;
+        }
+
+        .practice-modal .btn-group-toggle .btn {
+            margin-right: 5px;
+        }
+
+        .practice-modal .btn-group-toggle .btn:last-child {
+            margin-right: 0;
+        }
+
+        .practice-modal .btn-outline-primary:not(:disabled):not(.disabled).active {
+            background-color: #1976d2;
+            border-color: #1976d2;
+        }
+
+        .practice-modal #categoryType {
+            padding: 8px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            width: auto;
+            min-width: 400px;
+            background-color: white;
+            font-size: 0.95em;
+            font-family: monospace;
+        }
+
+        .practice-modal #categoryType:focus {
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+            outline: none;
+        }
+
+        .practice-modal .category-label {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+
+        .practice-modal #questionHistory .mb-3 {
+            background-color: #f8f9fa;
+            transition: background-color 0.2s ease;
+        }
+
+        .practice-modal #questionHistory .mb-3:hover {
+            background-color: #f0f0f0;
+        }
+
+        .practice-modal .audio-off {
+            background-color: #ff4444;
+            color: white;
+        }
+
+        .practice-modal .audio-on {
+            background-color: #00C851;
+            color: white;
+        }
+
+        .practice-modal .card.history-bowl {
+            background-color: #fffff0;  /* Light yellow */
+        }
+
+        .practice-modal .card.history-bee {
+            background-color: #f8f0ff;  /* Light violet */
+        }
+
+        /* Prevent main page scrolling during practice mode */
+        .modal-open {
+            overflow: hidden;
+        }
+
+        .modal-backdrop.show {
+            opacity: 0.5;
+        }
+
+        .modal-backdrop.fade {
+            opacity: 0;
+        }
+
+        .modal-backdrop.show.fade {
+            opacity: 0.5;
+        }
+
+        .modal-dialog {
+            transition: transform 0.3s ease;
+        }
+
+        .modal-dialog.show {
+            transform: none;
+        }
+
+        .modal-dialog.modal-lg {
+            max-width: 800px;
+        }
+
+        .modal-content {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            background-color: #f0f2f5;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 1rem;
+        }
+
+        .modal-title {
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .modal-footer {
+            background-color: #f0f2f5;
+            border-top: 1px solid #e0e0e0;
+            padding: 1rem;
+        }
+
+        .modal-footer .btn {
+            margin-left: 0.5rem;
+        }
+
+        .modal-footer .btn-primary {
+            background-color: #1976d2;
+            border-color: #1976d2;
+        }
+
+        .modal-footer .btn-secondary {
+            background-color: #455a64;
+            border-color: #455a64;
+        }
+
+        .modal-footer .btn-danger {
+            background-color: #d32f2f;
+            border-color: #d32f2f;
+        }
+
+        .modal-footer .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-footer .btn:focus {
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        .modal-footer .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .modal-footer .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .modal-footer .btn:disabled:focus {
+            box-shadow: none;
+        }
+
+        .modal-footer .btn-group {
+            margin-right: 0.5rem;
+        }
+
+        .modal-footer .btn-group .btn {
+            margin-left: 0;
+        }
+
+        .modal-footer .btn-group .btn:first-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .modal-footer .btn-group .btn:last-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .modal-footer .btn-group .btn:not(:first-child):not(:last-child) {
+            border-radius: 0;
+        }
+
+        .modal-footer .btn-group .btn:not(:first-child) {
+            margin-left: -1px;
+        }
+
+        .modal-footer .btn-group .btn:not(:last-child) {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .modal-footer .btn-group .btn:not(:first-child):not(:last-child) {
+            border-radius: 0;
+        }
+
+        .badge-pill {
+            border-radius: 10rem;
+        }
+
+        .list-group-item {
+            margin-bottom: 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .navbar {
+            background-color: #000000 !important; /* Azure */
+        }
+        
+        /* Optional: adjust text color for better contrast */
+        .navbar-brand, .navbar-text, .nav-link {
+            color: white !important; /* Darker blue for text */
+        }
+        
+        /* Optional: adjust button colors to match theme */
+        .navbar .btn-outline-primary {
+            color: #2C5282;
+            border-color: #2C5282;
+        }
+        
+        .navbar .btn-outline-primary:hover {
+            background-color: #2C5282;
+            color: #F0F8FF !important;
+        }
+
+        .search-tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .search-tooltip .btn-group {
+            display: flex;
+            gap: 4px;
+        }
+
+        .search-tooltip .btn {
+            padding: 4px 8px;
+            font-size: 0.9em;
+        }
+
+        .container-fluid {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .question-container {
+            grid-column: 1;
+        }
+
+        .controls-container {
+            grid-column: 2;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 320px;
+            margin-left: auto;
+            overflow: hidden;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .control-group select,
+        .control-group input {
+            font-size: 0.8em;
+            width: 100%;
+            height: fit-content;
+        }
+
+        #question {
+            font-size: 1.3em;
+            margin: 1rem 0;
+        }
+
+        .btn-sm {
+            font-size: 0.9em;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .control-group select {
+            font-size: 0.8em;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 8px;
+            min-height: 36px;
+        }
+
+        .control-group select option {
+            font-size: 0.8em;
+            white-space: normal;
+            word-wrap: break-word;
+            padding: 4px;
+            max-width: 300px;
+        }
+
+        #categoryType {
+            width: 100%;
+            max-width: 100%;
+            padding: 4px 8px;
+        }
+
+        #categoryType option {
+            font-size: 0.8em;
+            padding: 4px 6px;
+            max-width: 300px;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .search-confirm {
+            position: fixed;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        .search-confirm .btn {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            margin: 0 4px;
+        }
+
+        .search-confirm .selected-text {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 8px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .history-card .metadata {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        .history-card .metadata span {
+            margin-right: 15px;
+        }
+
+        .history-card .set-name,
+        .history-card .category {
+            font-style: italic;
+        }
+
+        .history-card .set-name a {
+            color: #1565c0;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .history-card .set-name a:hover {
+            color: #003c8f;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <div class="container-fluid mt-5">        
-        <div id="set-name" class="text-center mb-3"></div>
-        <div id="question" class="text-center"></div>
-        <div class="form-group">
-            <div class="d-flex justify-content-center gap-2 mb-2">
-                <button id="buzz" class="btn btn-danger" style="margin-right: 10px;">Buzz (space)</button>
-                <button id="submit" class="btn btn-primary" style="margin-right: 10px;">Submit (enter)</button>
-                <button id="next" class="btn btn-secondary hidden">Next Question (j)</button>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center w-100">
+                <div class="d-flex align-items-center">
+                    <span id="usernameDisplay" class="navbar-text me-3" style="margin-right: 1vw;" color="white !important;"></span>
+                    <button id="authButton" class="btn btn-outline-light me-2" 
+                            onclick="auth.currentUser ? handleSignOut() : $('#authModal').modal('show')">
+                        Sign In
+                    </button>
+                    <button id="leaderboardButton" class="btn btn-outline-light me-2" onclick="showLeaderboard()">
+                        Leaderboard
+                    </button>
+                    <button class="btn btn-outline-light" onclick="$('#searchModal').modal('show')">
+                        Search Questions
+                    </button>
+                </div>
+                <h2 style="color: rgb(200, 255, 255);">LHS History Bowl Practice</h2>
+                <div id="userStats" class="text-end" style="display: none;">
+                    <span class="badge bg-success me-2">Correct: <span id="correctCount">0</span></span>
+                    <span class="badge bg-light">Total Answered: <span id="totalCount">0</span></span>
+                </div>
             </div>
-            <div id="result" class="text-center"></div>
-            <div id="past-answers" class="text-center"></div>
-            <input type="text" id="answer" class="form-control" placeholder="Answer here" disabled />
         </div>
-        <div class="mt-3">
-            <label for="speed">Speed:</label>
-            <input type="range" id="speed" min="600" max="1000" value="800" />
+    </nav>
+
+    <div class="container-fluid">
+        <div class="question-container">
+            <div id="set-name" class="mb-3"></div>
+            <div id="question"></div>
+            <div class="form-group">
+                <input type="text" id="answer" class="form-control mt-3" placeholder="Your answer..." disabled>
+                <div id="result"></div>
+                <div class="d-flex justify-content-center gap-2 mb-2">
+                    <button id="buzz" class="btn btn-danger">Buzz (space)</button>
+                    <button id="submit" class="btn btn-primary">Submit (enter)</button>
+                    <button id="next" class="btn btn-secondary hidden">Next Question (j)</button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div id="questionHistory" class="history-container"></div>
+            </div>
         </div>
-        <div class="mt-3 mb-3">
-            <label class="mr-2">Question Sets:</label>
-            <select id="setType" class="form-control-md">
-                <option value="all">All Sets</option>
-                <option value="nationals">Nationals Only</option>
-                <option value="regionals">Regionals Only</option>
-            </select>
-        </div>
-        
-        <div class="mt-3">
-            <textarea id="questionHistory" class="form-control" rows="10" readonly></textarea>
+
+        <div class="controls-container">
+            <div class="control-group">
+                <label for="speed">Reading Speed</label>
+                <input type="range" id="speed" min="600" max="1000" value="800">
+            </div>
+
+            <div class="control-group">
+                <label for="setType">Question Sets</label>
+                <select id="setType" class="form-control">
+                    <option value="all">All Questions (20,050 questions)</option>
+                    <option value="bowl-nationals">History Bowl Nationals (5,187 questions)</option>
+                    <option value="bowl-regionals">History Bowl Regionals (8,085 questions)</option>
+                    <option value="bee-nationals">History Bee Nationals (2,777 questions)</option>
+                    <option value="bee-regionals">History Bee Regionals (4,001 questions)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="categoryType">Category</label>
+                <select id="categoryType" class="form-control">
+                    <option value="" selected disabled>Select a Category</option>
+                    <option value="American History">American History (BN: 878 | BR: 1347 | BeN: 511 | BeR: 812 | Total: 3548)</option>
+                    <option value="European History">European History (BN: 587 | BR: 971 | BeN: 378 | BeR: 656 | Total: 2592)</option>
+                    <option value="World History">World History (BN: 402 | BR: 672 | BeN: 362 | BeR: 593 | Total: 2029)</option>
+                    <option value="Ancient History">Ancient History (BN: 127 | BR: 240 | BeN: 90 | BeR: 164 | Total: 621)</option>
+                    <option value="Current Events">Current Events (BN: 135 | BR: 182 | BeN: 50 | BeR: 105 | Total: 472)</option>
+                    <option value="Geography">Geography (BN: 81 | BR: 185 | BeN: 59 | BeR: 135 | Total: 460)</option>
+                    <option value="Trash">Trash (BN: 86 | BR: 177 | BeN: 45 | BeR: 92 | Total: 400)</option>
+                    <option value="Visual Fine Arts">Visual Fine Arts (BN: 76 | BR: 138 | BeN: 37 | BeR: 86 | Total: 337)</option>
+                    <option value="Auditory Fine Arts">Auditory Fine Arts (BN: 52 | BR: 122 | BeN: 32 | BeR: 72 | Total: 278)</option>
+                    <option value="Other Fine Arts">Other Fine Arts (BN: 62 | BR: 88 | BeN: 29 | BeR: 45 | Total: 224)</option>
+                    <option value="Philosophy">Philosophy (BN: 54 | BR: 83 | BeN: 24 | BeR: 44 | Total: 205)</option>
+                    <option value="Religion">Religion (BN: 47 | BR: 81 | BeN: 18 | BeR: 48 | Total: 194)</option>
+                    <option value="Social Science">Social Science (BN: 46 | BR: 80 | BeN: 17 | BeR: 49 | Total: 192)</option>
+                    <option value="American Literature">American Literature (BN: 41 | BR: 60 | BeN: 22 | BeR: 44 | Total: 167)</option>
+                    <option value="Mythology">Mythology (BN: 29 | BR: 71 | BeN: 19 | BeR: 37 | Total: 156)</option>
+                    <option value="Other Science">Other Science (BN: 26 | BR: 60 | BeN: 9 | BeR: 33 | Total: 128)</option>
+                    <option value="British Literature">British Literature (BN: 32 | BR: 42 | BeN: 20 | BeR: 25 | Total: 119)</option>
+                    <option value="European Literature">European Literature (BN: 18 | BR: 36 | BeN: 10 | BeR: 19 | Total: 83)</option>
+                    <option value="Physics">Physics (BN: 11 | BR: 30 | BeN: 6 | BeR: 20 | Total: 67)</option>
+                    <option value="Biology">Biology (BN: 10 | BR: 32 | BeN: 7 | BeR: 8 | Total: 57)</option>
+                    <option value="World Literature">World Literature (BN: 16 | BR: 22 | BeN: 9 | BeR: 8 | Total: 55)</option>
+                    <option value="Chemistry">Chemistry (BN: 8 | BR: 25 | BeN: 5 | BeR: 15 | Total: 53)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <button id="audioToggle" class="btn btn-sm audio-off w-100">🔈 Audio Off</button>
+            </div>
         </div>
     </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         let currentQuestion = {};
         let currentIndex = 0;
         let words = [];
         let intervalId;
+        let audioEnabled = false;
+        const answerPlaceholder = document.getElementById('answer');
+        answerPlaceholder.style.display = 'none';
+        let allQuestions = null;
+
+        // Word frequency analyzer with blacklist
+        const wordFrequencyAnalyzer = {
+            // Common words to ignore by default
+            blacklist: new Set([
+                'the', 'a', 'an', 'and', 'or', 'but', 'in', 'at', 'to', 'for', 'with',
+                'by', 'from', 'up', 'about', 'into', 'over', 'after', 'this', 'that', 'these',
+                'those', 'his', 'her', 'their', 'its', 'is', 'was', 'were', 'be', 'been', 'being',
+                'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could',
+                'who', 'what', 'where', 'when', 'why', 'how', 'ten points', 'points name',
+                'man', 'points', 'empire', 'battle', 'war', 'of', 'ten', 'name', 'on', 'city', 'accept', 'which', 'ruler', 'one', 'point', 'as', 'first', 'led', 'he', 'capital', 'during', 'crusade', 'events', 'used', 'prompt on', 'in', 'group in', 'part of', 'of mass', 'under him', 'not prompt on', 'people', 'named', 'prompt', 'new', 'location'
+            ]),
+
+            // Words to keep even if they appear in search terms
+            exceptions: new Set(['of', 'at', 'on', 'during', 'between', 'crusade']),
+
+            // Single words that should only be blacklisted when they appear alone
+            singleWordBlacklist: new Set(['empire', 'battle', 'war']),
+
+            // Two-word phrases that should be blacklisted unless part of longer phrases
+            twoWordBlacklist: new Set(['battle of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country']),
+
+            hasBlacklistedWords(phrase) {
+                const words = phrase.split(' ');
+                
+                // Block phrases containing "prompt on" in that order
+                for (let i = 0; i < words.length - 1; i++) {
+                    if (words[i].toLowerCase() === 'prompt' && words[i + 1].toLowerCase() === 'on') {
+                        return true;
+                    }
+                }
+                
+                // For single words
+                if (words.length === 1) {
+                    const word = words[0];
+                    return (this.blacklist.has(word) || this.singleWordBlacklist.has(word)) && 
+                           !this.exceptions.has(word);
+                }
+                
+                // Block phrases that start with "of" (when it's not the only word)
+                if (words.length >= 2 && words[0].toLowerCase() === 'of') {
+                    return true;
+                }
+                
+                // For two-word phrases
+                if (words.length === 2) {
+                    const twoWordPhrase = words.join(' ');
+                    if (this.twoWordBlacklist.has(twoWordPhrase)) {
+                        return true;
+                    }
+                }
+                
+                // For longer phrases, only check regular blacklist words
+                // (excluding words in singleWordBlacklist and twoWordBlacklist)
+                return words.some(word => 
+                    this.blacklist.has(word) && 
+                    !this.singleWordBlacklist.has(word) && 
+                    !this.exceptions.has(word)
+                );
+            },
+
+            addToSingleWordBlacklist(...words) {
+                words.forEach(word => {
+                    this.singleWordBlacklist.add(word.toLowerCase());
+                    this.blacklist.add(word.toLowerCase());
+                });
+            },
+
+            removeFromSingleWordBlacklist(...words) {
+                words.forEach(word => {
+                    this.singleWordBlacklist.delete(word.toLowerCase());
+                    this.blacklist.delete(word.toLowerCase());
+                });
+            },
+
+            addToTwoWordBlacklist(...phrases) {
+                phrases.forEach(phrase => {
+                    this.twoWordBlacklist.add(phrase.toLowerCase());
+                });
+            },
+
+            removeFromTwoWordBlacklist(...phrases) {
+                phrases.forEach(phrase => {
+                    this.twoWordBlacklist.delete(phrase.toLowerCase());
+                });
+            },
+
+            analyzeFrequency(texts, searchTerm, maxWords = 10, minFrequency = 2) {
+                const frequencies = {
+                    words: new Map(),
+                    phrases: new Map()
+                };
+
+                // Process search terms
+                const searchTerms = searchTerm.toLowerCase().split(' ');
+                const searchPhrases = new Set();
+                
+                // Generate all possible combinations of search terms
+                for (let i = 0; i < searchTerms.length; i++) {
+                    for (let j = i + 1; j <= searchTerms.length; j++) {
+                        const phrase = searchTerms.slice(i, j).join(' ');
+                        if (!this.exceptions.has(phrase)) {
+                            searchPhrases.add(phrase);
+                        }
+                    }
+                }
+
+                texts.forEach(text => {
+                    const cleanedText = text.toLowerCase()
+                        .replace(/<[^>]+>/g, '') // Remove HTML tags
+                        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+                        .replace(/\s{2,}/g, ' ') // Remove extra spaces
+                        .trim();
+                    
+                    const words = cleanedText.split(' ');
+
+                    // Single words
+                    words.forEach(word => {
+                        if (!this.blacklist.has(word) && 
+                            word.length > 1 && 
+                            (!searchPhrases.has(word) || this.exceptions.has(word))) {
+                            frequencies.words.set(word, (frequencies.words.get(word) || 0) + 1);
+                        }
+                    });
+
+                    // Phrases (2 to maxWords length)
+                    for (let length = 2; length <= maxWords; length++) {
+                        for (let i = 0; i <= words.length - length; i++) {
+                            const phrase = words.slice(i, i + length).join(' ');
+                            if (!this.hasBlacklistedWords(phrase) && 
+                                !searchPhrases.has(phrase) && 
+                                !this.containsSearchPhrase(phrase, searchPhrases)) {
+                                frequencies.phrases.set(phrase, (frequencies.phrases.get(phrase) || 0) + 1);
+                            }
+                        }
+                    }
+                });
+
+                return this.formatResults(frequencies, minFrequency);
+            },
+
+            containsSearchPhrase(phrase, searchPhrases) {
+                for (const searchPhrase of searchPhrases) {
+                    if (phrase.includes(searchPhrase)) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+
+            formatResults(frequencies, minFrequency) {
+                // First, sort by frequency and filter by minimum frequency
+                const formatMap = map => {
+                    return Array.from(map.entries())
+                        .filter(([, count]) => count >= minFrequency)
+                        .sort((a, b) => b[1] - a[1]);
+                };
+
+                const singleWords = formatMap(frequencies.words);
+                const phrases = formatMap(frequencies.phrases);
+
+                // Filter out subphrases
+                const filteredPhrases = phrases.filter(([phrase1, count1]) => {
+                    return !phrases.some(([phrase2, count2]) => {
+                        if (phrase1 === phrase2) return false;
+                        if (phrase2.includes(phrase1) && count2 >= count1) return true;
+                        return false;
+                    });
+                });
+
+                // Filter out single words that appear in phrases with equal or higher frequency
+                const filteredWords = singleWords.filter(([word, wordCount]) => {
+                    return !filteredPhrases.some(([phrase, phraseCount]) => {
+                        return phrase.includes(word) && phraseCount >= wordCount;
+                    });
+                });
+
+                return {
+                    singleWords: filteredWords,
+                    phrases: filteredPhrases
+                };
+            }
+        };
+
+        async function preloadQuestions() {
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'alert alert-info text-center';
+            loadingIndicator.innerHTML = `
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Loading question database...
+            `;
+            document.querySelector('.container-fluid').prepend(loadingIndicator);
+
+            try {
+                const repositories = ['sets', 'beeSets'];
+                allQuestions = [];
+                
+                // Fetch file lists from both local directories
+                const allFiles = await Promise.all(
+                    repositories.map(async repo => {
+                        const response = await fetch(`http://localhost:3000/${repo}`);
+                        const files = await response.json();
+                        return files.map(file => ({
+                            name: file,
+                            download_url: `http://localhost:3000/${repo}/${file}`,
+                            repo: repo
+                        }));
+                    })
+                ).then(results => results.flat());
+
+                // Fetch all JSON files in parallel
+                const questionSets = await Promise.all(
+                    allFiles.map(file => 
+                        fetch(file.download_url)
+                            .then(res => res.json())
+                            .then(data => ({
+                                data,
+                                repo: file.repo,
+                                name: file.name
+                            }))
+                            .catch(err => {
+                                console.warn(`Failed to load ${file.name}:`, err);
+                                return null;
+                            })
+                    )
+                );
+
+                // Process all successfully loaded question sets
+                allQuestions = questionSets
+                    .filter(set => set !== null)
+                    .flatMap(({data, repo, name}) => 
+                        data.tossups.map(q => ({
+                            ...q,
+                            setName: name.replace('.json', ''),
+                            isBeeset: repo === 'beeSets'
+                        }))
+                    );
+
+                loadingIndicator.remove();
+            } catch (error) {
+                console.error('Error:', error);
+                loadingIndicator.className = 'alert alert-danger text-center';
+                loadingIndicator.textContent = 'Error loading questions. Please refresh the page.';
+            }
+        }
 
         async function fetchQuestion() {
-            const setType = document.getElementById('setType').value;
-            const response = await fetch(`/api/question?setType=${setType}`);
-            currentQuestion = await response.json();
-            
-            // Strip HTML tags and get clean text
-            const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
-            words = cleanQuestion.split(/\s+/);
-            
-            currentIndex = 0;
-            document.getElementById('result').innerText = '';
-            document.getElementById('past-answers').innerText = '';
-            
-            // Pre-load the question with all words hidden
-            const questionDiv = document.getElementById('question');
-            questionDiv.innerHTML = words.map((word, index) => {
-                return `<span class="word hidden">${word}</span>`;
-            }).join(' ');
-            
-            document.getElementById('set-name').innerHTML = `Set: ${currentQuestion.setName} <a href="${currentQuestion.pdfLink}" target="_blank">PDF</a>`;
-            startDisplayingWords();
+            try {
+                const setType = document.getElementById('setType').value;
+                
+                // Determine which repositories to fetch from based on setType
+                let repositories = [];
+                if (setType === 'all' || setType.startsWith('bowl')) {
+                    repositories.push('sets');
+                }
+                if (setType === 'all' || setType.startsWith('bee')) {
+                    repositories.push('beeSets');
+                }
+
+                let allFiles = [];
+                for (const repo of repositories) {
+                    const repoUrl = `https://api.github.com/repos/charliechicken/hbNats/contents/${repo}`;
+                    const filesResponse = await fetch(repoUrl);
+                    const files = await filesResponse.json();
+                    
+                    // Filter JSON files based on setType
+                    const jsonFiles = files
+                        .filter(file => file.name.endsWith('.json'))
+                        .filter(file => {
+                            if (setType === 'all') return true;
+                            const isNationals = file.name.toLowerCase().includes('nationals');
+                            const isBee = repo === 'beeSets';
+                            
+                            switch(setType) {
+                                case 'bowl-nationals':
+                                    return !isBee && isNationals;
+                                case 'bowl-regionals':
+                                    return !isBee && !isNationals;
+                                case 'bee-nationals':
+                                    return isBee && isNationals;
+                                case 'bee-regionals':
+                                    return isBee && !isNationals;
+                                default:
+                                    return true;
+                            }
+                        });
+                    
+                    allFiles.push(...jsonFiles);
+                }
+
+                if (allFiles.length === 0) {
+                    throw new Error(`No sets found for set type: ${setType}`);
+                }
+                
+                // Get a random file
+                const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
+                const setName = randomFile.name.replace('.json', '');
+                
+                // Fetch the content of the selected file
+                const response = await fetch(randomFile.download_url);
+                const data = await response.json();
+                
+                // Get random question
+                let tossups = data.tossups.filter(tossup => tossup.question && tossup.answer);
+
+                // Filter by category if selected
+                const categorySelect = document.getElementById('categoryType');
+                const selectedCategory = categorySelect.value;
+
+                if (selectedCategory) {
+                    tossups = tossups.filter(tossup => {
+                        if (!tossup.metadata) return false;
+                        return tossup.metadata.toLowerCase().includes(selectedCategory.toLowerCase());
+                    });
+                    
+                    if (tossups.length === 0) {
+                        return fetchQuestion();
+                    }
+                }
+
+                const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
+                
+                currentQuestion = {
+                    question: randomQuestion.question,
+                    answer: randomQuestion.answer,
+                    setName: setName,
+                    metadata: randomQuestion.metadata,
+                    pdfLink: `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${setName}.pdf`
+                };
+                
+                const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
+                words = cleanQuestion.split(/\s+/);
+                
+                currentIndex = 0;
+                document.getElementById('result').innerText = '';
+                
+                const questionDiv = document.getElementById('question');
+                questionDiv.innerHTML = words.map((word, index) => {
+                    return `<span class="word hidden">${word}</span>`;
+                }).join(' ');
+                
+                document.getElementById('set-name').innerHTML = `Set: ${currentQuestion.setName} <a href="${currentQuestion.pdfLink}" target="_blank">PDF</a>`;
+                startDisplayingWords();
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading question. Please try again.
+                    </div>`;
+            }
         }
 
         function startDisplayingWords() {
@@ -236,6 +1479,10 @@
             const userAnswer = document.getElementById('answer').value.toLowerCase().trim();
             const correctAnswer = currentQuestion.answer;
 
+            // Show all remaining words
+            const wordElements = document.querySelectorAll('#question .word');
+            wordElements.forEach(element => element.classList.remove('hidden'));
+
             // Extract all bolded/underlined parts from the answer
             const boldedParts = correctAnswer.match(/<b>.*?<\/b>|<b><u>.*?<\/u><\/b>/g) || [];
             const acceptableAnswers = boldedParts.map(part => 
@@ -249,19 +1496,29 @@
             );
 
             if (isCorrect) {
-                document.getElementById('result').innerText = "Correct!";
+                
+                if (audioEnabled) {
+                    document.getElementById('correctSound').play();
+                }
+                
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-success">
+                        Correct! The answer was: ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}
+                    </div>`;
             } else {
-                document.getElementById('result').innerText = "Incorrect!";
+
+                if (audioEnabled) {
+                    document.getElementById('incorrectSound').play();
+                }
+
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-danger">
+                        Incorrect. The answer was: ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}
+                    </div>`;
             }
+            document.getElementById('answer').style.display = 'none';
             
-            document.getElementById('past-answers').innerHTML += `
-                <div class="border-bottom pb-2 mb-2">
-                    <strong>Question:</strong> ${currentQuestion.question}<br>
-                    <strong>Your Answer:</strong> ${userAnswer}<br>
-                    <strong>Correct Answer:</strong> ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}<br>
-                    <strong>Set:</strong> ${currentQuestion.setName}
-                </div>
-            `;
+
             document.getElementById('questionHistory').value += 
             `Question: ${currentQuestion.question.replace(/<[^>]+>/g, '')}\n` +
             `Your Answer: ${userAnswer}\n` +
@@ -309,9 +1566,15 @@
                 clearInterval(intervalId);
                 const answerInput = document.getElementById('answer');
                 answerInput.disabled = false;
+                answerInput.style.display = 'block';
                 answerInput.focus();
                 document.getElementById('buzz').disabled = true;
                 document.getElementById('submit').classList.remove('hidden');
+                
+                if (audioEnabled) {
+                    document.getElementById('buzzSound').play();
+                }
+                    
             }
         }
 
@@ -319,7 +1582,9 @@
 
         // Add spacebar listener for buzz
         document.addEventListener('keydown', (event) => {
-            if (event.code === 'Space' && !event.repeat && !document.getElementById('answer').matches(':focus')) {
+            if (event.code === 'Space' && !event.repeat && 
+                !document.getElementById('answer').matches(':focus') && 
+                !document.getElementById('searchModal').classList.contains('show')) {
                 event.preventDefault();
                 handleBuzz();
             }
@@ -333,6 +1598,568 @@
 
         // Fetch a question when the page loads
         fetchQuestion();
+
+        document.getElementById('audioToggle').addEventListener('click', () => {
+            audioEnabled = !audioEnabled;
+            const button = document.getElementById('audioToggle');
+            if (audioEnabled) {
+                button.innerHTML = '🔊 Audio On';
+                button.classList.remove('audio-off');
+                button.classList.add('audio-on');
+            } else {
+                button.innerHTML = '🔈 Audio Off';
+                button.classList.remove('audio-on');
+                button.classList.add('audio-off');
+            }
+        });
+
+        async function searchQuestions() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const searchType = document.querySelector('input[name="searchType"]:checked').value;
+            
+            if (!searchTerm) return;
+            
+            const searchResults = document.getElementById('searchResults');
+            $('#resultsModal').modal('show');
+            
+            const searchTerms = searchTerm.split(' ').filter(term => term.length > 0);
+            
+            const matches = allQuestions.filter(q => {
+                // Remove HTML tags before searching
+                const questionText = (q.question || '').toLowerCase().replace(/<[^>]+>/g, '').replace(/<\/[^>]+>/g, '');
+                const answerText = (q.answer || '').toLowerCase().replace(/<[^>]+>/g, '').replace(/<\/[^>]+>/g, '');
+                
+                const allTermsPresent = searchTerms.every(term => {
+                    switch (searchType) {
+                        case 'question':
+                            return questionText.includes(term);
+                        case 'answer':
+                            return answerText.includes(term);
+                        default: // 'both'
+                            return questionText.includes(term) || answerText.includes(term);
+                    }
+                });
+                
+                return allTermsPresent;
+            });
+            
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div class="alert alert-info">No questions found matching your search.</div>';
+            } else {
+                // Analyze word frequencies in search results
+                const textsToAnalyze = matches.map(q => `${q.question} ${q.answer}`);
+                const frequencies = wordFrequencyAnalyzer.analyzeFrequency(textsToAnalyze, searchTerm);
+
+                searchResults.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="alert alert-success mb-0">Found ${matches.length} matching questions</div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Frequency Analysis</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Common Phrases:</h6>
+                            <div>
+                                ${frequencies.phrases
+                                    .slice(0, 25)
+                                    .map(([phrase, count]) => 
+                                        `<span class="badge badge-secondary mr-2 mb-1">${phrase} (${count})</span>`
+                                    ).join('')}
+                            </div>
+                            <h6>Common Words:</h6>
+                            <div class="mb-3">
+                                ${frequencies.singleWords
+                                    .slice(0, 10)
+                                    .map(([word, count]) => 
+                                        `<span class="badge badge-primary mr-2 mb-1">${word} (${count})</span>`
+                                    ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    ${matches.map(q => `
+                        <div class="card mb-3 ${q.isBeeset ? 'history-bee' : 'history-bowl'}">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">
+                                    Set: <a href="https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${q.setName}.pdf" 
+                                        target="_blank" rel="noopener noreferrer">${q.setName}</a>
+                                    (${q.isBeeset ? 'History Bee' : 'History Bowl'})
+                                </h6>
+                                <div class="card-text">${highlightSearchTerms(q.question, searchTerm)}</div>
+                                <div class="card-text"><strong>Answer:</strong> <span class="answer-text">${highlightSearchTerms(q.answer, searchTerm)}</span></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+
+        // Add debounce function at the top
+        let isSubmitting = false;
+
+        async function handleSubmit() {
+            if (isSubmitting) return; // Prevent double submission
+            isSubmitting = true;
+            
+            console.log('handleSubmit called');
+            const userAnswer = document.getElementById('answer').value.trim();
+            const isCorrect = checkAnswer(userAnswer, currentQuestion.answer);
+            
+            // Add to history without saving progress (checkAnswer handles that)
+            addToQuestionHistory(currentQuestion, userAnswer, isCorrect);
+            
+            // Show next button
+            document.getElementById('next').style.display = 'block';
+            
+            // Reset submission lock after a short delay
+            setTimeout(() => {
+                isSubmitting = false;
+            }, 1000);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await preloadQuestions();
+            
+            // Add search input listener
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchQuestions();
+                }
+            });
+            
+            // Add submit button listener
+            const submitButton = document.getElementById('submit');
+            submitButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleSubmit();
+            });
+            
+            // Add enter key listener for answer input
+            const answerInput = document.getElementById('answer');
+            answerInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSubmit();
+                }
+            });
+        });
+
+        function highlightSearchTerms(text, searchTerm) {
+            if (!text || !searchTerm) return text;
+            
+            // First decode any HTML entities that might be in the text
+            const textArea = document.createElement('textarea');
+            textArea.innerHTML = text;
+            let decodedText = textArea.value;
+            
+            // Split search terms and create pattern
+            const searchTerms = searchTerm.toLowerCase().split(' ').filter(term => term.length > 0);
+            const pattern = searchTerms.map(term => 
+                term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            ).join('|');
+            
+            // Create regex that excludes HTML tags
+            const regex = new RegExp(`(?<!<[^>]*)(${pattern})(?![^<]*>)`, 'gi');
+            
+            // Add highlighting while preserving HTML
+            decodedText = decodedText.replace(regex, match => `<mark>${match}</mark>`);
+            
+            return decodedText;
+        }
+
+        function showResult(isCorrect, correctAnswer) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="alert ${isCorrect ? 'alert-success' : 'alert-danger'}">
+                    <strong>${isCorrect ? 'Correct!' : 'Incorrect.'}</strong><br>
+                    Answer: ${correctAnswer}<br>
+                    Category: ${currentQuestion.metadata || 'Uncategorized'}<br>
+                    Set: ${currentQuestion.setName}
+                </div>`;
+        }
+
+        function addToQuestionHistory(question, userAnswer, isCorrect) {
+            const historyDiv = document.getElementById('questionHistory');
+            
+            // Show history div if it's the first answer
+            if (historyDiv.style.display === 'none') {
+                historyDiv.style.display = 'block';
+            }
+            
+            const card = document.createElement('div');
+            card.className = `history-card ${isCorrect ? 'correct' : 'incorrect'}`;
+            
+            // Extract question text properly
+            const questionText = typeof question === 'string' ? question : 
+                                (question.question || 'Question not available');
+            
+            // Create PDF link for set name
+            const setPdfLink = currentQuestion.setName ? 
+                `<a href="https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${currentQuestion.setName}.pdf" 
+                    target="_blank" rel="noopener noreferrer">${currentQuestion.setName}</a>` : 
+                'Unknown';
+            
+            card.innerHTML = `
+                <div class="question-text">${questionText}</div>
+                <div class="answer-section">
+                    <div class="metadata">
+                        <span class="set-name">Set: ${setPdfLink}</span>
+                        <span class="category">Category: ${currentQuestion.metadata || 'Uncategorized'}</span>
+                    </div>
+                    <div>
+                        <span class="user-answer">Your answer: ${userAnswer}</span>
+                    </div>
+                    <div>
+                        <span class="correct-answer">Correct answer: ${currentQuestion.answer.replace(/<\/?[^>]+(>|$)/g, '')}</span>
+                    </div>
+                </div>
+            `;
+            
+            // Add to beginning of history
+            if (historyDiv.firstChild) {
+                historyDiv.insertBefore(card, historyDiv.firstChild);
+            } else {
+                historyDiv.appendChild(card);
+            }
+            
+            // Keep only last 10 questions
+            while (historyDiv.children.length > 10) {
+                historyDiv.removeChild(historyDiv.lastChild);
+            }
+        }
+
+        async function handleSignUp() {
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    const username = document.getElementById('authUsername').value;
+    
+    if (!username.trim()) {
+        alert('Username is required');
+        return;
+    }
+    
+    try {
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        // Save user data including username
+        await window.db.ref("users/" + user.uid).set({
+            email: user.email,
+            username: username,
+            progress: {
+                questionsAnswered: 0,
+                correctAnswers: 0,
+                history: []
+            }
+        });
+        
+        $('#authModal').modal('hide');
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
+}
+
+        async function handleSignIn() {
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                $('#authModal').modal('hide');
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function handleSignOut() {
+            try {
+                await window.auth.signOut();
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+
+
+        function normalizeAnswer(answer) {
+            if (!answer) return [];
+            
+            // Convert to lowercase and remove extra spaces
+            answer = answer.toLowerCase().trim();
+            
+            // Extract bold/underlined text (text between various tags)
+            const tagMatches = answer.match(/<[bu]>(.*?)<\/[bu]>|_(.*?)_/g);
+            
+            if (tagMatches) {
+                // Get the emphasized text
+                const emphasizedAnswers = tagMatches.map(match => 
+                    match.replace(/<[^>]+>|_/g, '').trim()
+                );
+                
+                // Remove all HTML tags for the full answer
+                const fullAnswer = answer.replace(/<[^>]+>/g, '').trim()
+                    .replace(/[^a-z0-9\s]/g, '')
+                    .replace(/\s+/g, ' ');
+                    
+                // Return both the emphasized parts and the full answer
+                return [...new Set([...emphasizedAnswers, fullAnswer])];
+            }
+            
+            // If no tags, just clean and return the full answer
+            return [answer.replace(/<[^>]+>/g, '') // Remove all HTML tags
+                     .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+                     .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+                     .trim()];
+        }
+
+        function checkAnswer(userAnswer, correctAnswer) {
+            console.log('checkAnswer called with:', { userAnswer, correctAnswer });
+            
+            // If no answer given, count as incorrect
+            if (!userAnswer.trim()) {
+                if (window.auth?.currentUser) {
+                    const questionData = {
+                        question: currentQuestion.question,
+                        answer: correctAnswer,
+                        userAnswer: '',
+                        isCorrect: false,
+                        timestamp: new Date().toISOString(),
+                        setName: currentQuestion.setName || ''
+                    };
+                    saveUserProgress(questionData);
+                }
+                showResult(false, correctAnswer);
+                return false;
+            }
+            
+            // Normalize both answers
+            const normalizedUserAnswer = normalizeAnswer(userAnswer)[0]; // Take first normalized answer
+            const acceptedAnswers = normalizeAnswer(correctAnswer);
+            
+            console.log('Normalized user answer:', normalizedUserAnswer);
+            console.log('Accepted answers:', acceptedAnswers);
+            
+            // Check if user's answer contains any of the accepted answers
+            const isCorrect = acceptedAnswers.some(accepted => {
+                const cleanAccepted = accepted.toLowerCase().trim();
+                return normalizedUserAnswer.includes(cleanAccepted) || 
+                       cleanAccepted.includes(normalizedUserAnswer);
+            });
+            
+            console.log('Answer is:', isCorrect ? 'correct' : 'incorrect');
+            
+            if (window.auth?.currentUser) {
+                const questionData = {
+                    question: currentQuestion.question,
+                    answer: correctAnswer,
+                    userAnswer: userAnswer,
+                    isCorrect: isCorrect,
+                    timestamp: new Date().toISOString(),
+                    setName: currentQuestion.setName || ''
+                };
+                saveUserProgress(questionData);
+            }
+            
+            showResult(isCorrect, correctAnswer);
+            return isCorrect;
+        }
+
+        async function showLeaderboard() {
+            const leaderboardList = document.getElementById('leaderboardList');
+            leaderboardList.innerHTML = '<div class="text-center">Loading...</div>';
+            
+            try {
+                const usersRef = window.db.ref('users');
+                const snapshot = await usersRef.orderByChild('progress/correctAnswers')
+                    .limitToLast(100)
+                    .once('value');
+                
+                const users = [];
+                snapshot.forEach(childSnapshot => {
+                    const userData = childSnapshot.val();
+                    if (userData.username && userData.progress) {
+                        users.push({
+                            username: userData.username,
+                            correctAnswers: userData.progress.correctAnswers || 0
+                        });
+                    }
+                });
+                
+                // Sort in descending order
+                users.sort((a, b) => b.correctAnswers - a.correctAnswers);
+                
+                // Update the modal content
+                leaderboardList.innerHTML = users.map((user, index) => `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="h5 mb-0">
+                            <strong>#${index + 1}</strong> ${user.username}
+                        </span>
+                        <span class="badge bg-info rounded-pill">
+                            ${user.correctAnswers} correct
+                        </span>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                leaderboardList.innerHTML = '<div class="text-danger">Error loading leaderboard</div>';
+            }
+            
+            $('#leaderboardModal').modal('show');
+        }
+
+        document.addEventListener('mouseup', function(e) {
+            const selectedText = window.getSelection().toString().trim();
+            const searchConfirm = document.getElementById('searchConfirm');
+            const isInModal = e.target.closest('.modal') !== null;
+            
+            // Only proceed if we have selected text
+            if (selectedText && selectedText.length > 0) {
+                // For modal selections, auto-search if word length > 2
+                if (isInModal && selectedText.length > 3) {
+                    document.getElementById('searchInput').value = selectedText;
+                    searchQuestions();
+                    window.getSelection().removeAllRanges();
+                    return;
+                }
+                
+                // For main page selections, show confirmation dialog
+                if (!isInModal) {
+                    if (!searchConfirm) {
+                        // Create confirm dialog if it doesn't exist
+                        const confirm = document.createElement('div');
+                        confirm.id = 'searchConfirm';
+                        confirm.className = 'search-confirm';
+                        confirm.innerHTML = `
+                            <div class="selected-text"></div>
+                            <button class="btn btn-primary btn-sm search-yes">Search</button>
+                            <button class="btn btn-secondary btn-sm search-no">Cancel</button>
+                        `;
+                        document.body.appendChild(confirm);
+                    }
+                    
+                    const confirm = document.getElementById('searchConfirm');
+                    confirm.querySelector('.selected-text').textContent = `Search for: "${selectedText}"`;
+                    
+                    // Position the confirm dialog near the mouse
+                    confirm.style.left = `${e.pageX}px`;
+                    confirm.style.top = `${e.pageY + 20}px`;
+                    confirm.style.display = 'block';
+                    
+                    // Handle search confirmation
+                    confirm.querySelector('.search-yes').onclick = function() {
+                        document.getElementById('searchInput').value = selectedText;
+                        searchQuestions();
+                        confirm.style.display = 'none';
+                    };
+                    
+                    // Handle cancellation
+                    confirm.querySelector('.search-no').onclick = function() {
+                        confirm.style.display = 'none';
+                    };
+                    
+                    // Close if clicked outside
+                    document.addEventListener('mousedown', function closeConfirm(e) {
+                        if (!confirm.contains(e.target)) {
+                            confirm.style.display = 'none';
+                            document.removeEventListener('mousedown', closeConfirm);
+                        }
+                    });
+                }
+            }
+        });
     </script>
+
+    <!-- Search Modal -->
+    <div class="modal fade" id="searchModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Search Questions</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search for terms...">
+                    <br>
+                    <div class="btn-group btn-group-toggle mb-3" data-toggle="buttons">
+                        <label class="btn btn-outline-primary active">
+                            <input type="radio" name="searchType" value="both" checked> Both
+                        </label>
+                        <label class="btn btn-outline-primary">
+                            <input type="radio" name="searchType" value="question"> Questions Only
+                        </label>
+                        <label class="btn btn-outline-primary">
+                            <input type="radio" name="searchType" value="answer"> Answers Only
+                        </label>
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="searchQuestions()">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div class="modal fade" id="resultsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Search Results</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="searchResults">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal fade" id="authModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sign In / Sign Up</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input type="email" id="authEmail" class="form-control mb-2" placeholder="Email">
+                        <input type="password" id="authPassword" class="form-control mb-2" placeholder="Password">
+                        <input type="text" id="authUsername" class="form-control mb-2" placeholder="Username">
+                        <div class="btn-group w-100">
+                            <button onclick="handleSignIn()" class="btn btn-primary">Sign In</button>
+                            <button onclick="handleSignUp()" class="btn btn-secondary">Sign Up</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div class="modal fade" id="leaderboardModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Top 100 Players</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="leaderboardList" class="list-group">
+                        <!-- Leaderboard entries will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
