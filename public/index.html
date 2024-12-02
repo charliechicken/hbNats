@@ -1295,11 +1295,11 @@
                 // Fetch file lists from both local directories
                 const allFiles = await Promise.all(
                     repositories.map(async repo => {
-                        const response = await fetch(`http://localhost:3000/${repo}`);
+                        const response = await fetch(`/${repo}`);
                         const files = await response.json();
                         return files.map(file => ({
                             name: file,
-                            download_url: `http://localhost:3000/${repo}/${file}`,
+                            download_url: `/${repo}/${file}`,
                             repo: repo
                         }));
                     })
