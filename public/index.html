@@ -984,6 +984,64 @@
             color: #003c8f;
             text-decoration: underline;
         }
+
+        .frequency-analysis {
+            font-size: 0.9em;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .frequency-analysis .card-body {
+            padding: 0.8rem;
+        }
+
+        .frequency-analysis h6 {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .frequency-analysis ul {
+            columns: 2;
+            font-size: 0.8em;
+            margin-bottom: 0;
+        }
+
+        .frequency-analysis li {
+            padding: 2px 0;
+            color: #555;
+        }
+
+        .search-result-card {
+            font-size: 0.9em;
+            margin-bottom: 0.5rem;
+        }
+
+        .search-result-card .card-body {
+            padding: 0.8rem;
+        }
+
+        .search-result-card .card-subtitle {
+            font-size: 0.8em;
+        }
+
+        .search-result-card .card-text {
+            font-size: 0.9em;
+            line-height: 1.4;
+            margin-top: 0.5rem;
+        }
+
+        .search-highlight {
+            background-color: #fff3cd;
+            padding: 0.1em 0.2em;
+            border-radius: 2px;
+            margin: 0 -0.2em;
+        }
+
+        .search-result-card .card-text mark {
+            background-color: #fff3cd;
+        }
     </style>
 </head>
 <body>
@@ -1095,6 +1153,7 @@
         const answerPlaceholder = document.getElementById('answer');
         answerPlaceholder.style.display = 'none';
         let allQuestions = null;
+        let matches = []; // Add this at the top with other global variables
 
         // Word frequency analyzer with blacklist
         const wordFrequencyAnalyzer = {
@@ -1115,7 +1174,7 @@
             singleWordBlacklist: new Set(['empire', 'battle', 'war']),
 
             // Two-word phrases that should be blacklisted unless part of longer phrases
-            twoWordBlacklist: new Set(['battle of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country']),
+            twoWordBlacklist: new Set(['battle of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of']),
 
             hasBlacklistedWords(phrase) {
                 const words = phrase.split(' ');
@@ -1130,8 +1189,7 @@
                 // For single words
                 if (words.length === 1) {
                     const word = words[0];
-                    return (this.blacklist.has(word) || this.singleWordBlacklist.has(word)) && 
-                           !this.exceptions.has(word);
+                    return (this.blacklist.has(word) || this.singleWordBlacklist.has(word)) && !this.exceptions.has(word);
                 }
                 
                 // Block phrases that start with "of" (when it's not the only word)
@@ -1624,12 +1682,11 @@
             
             const searchTerms = searchTerm.split(' ').filter(term => term.length > 0);
             
-            const matches = allQuestions.filter(q => {
-                // Remove HTML tags before searching
-                const questionText = (q.question || '').toLowerCase().replace(/<[^>]+>/g, '').replace(/<\/[^>]+>/g, '');
-                const answerText = (q.answer || '').toLowerCase().replace(/<[^>]+>/g, '').replace(/<\/[^>]+>/g, '');
+            matches = allQuestions.filter(q => {
+                const questionText = (q.question || '').toLowerCase().replace(/<[^>]+>/g, '');
+                const answerText = (q.answer || '').toLowerCase().replace(/<[^>]+>/g, '');
                 
-                const allTermsPresent = searchTerms.every(term => {
+                return searchTerms.every(term => {
                     switch (searchType) {
                         case 'question':
                             return questionText.includes(term);
@@ -1639,59 +1696,11 @@
                             return questionText.includes(term) || answerText.includes(term);
                     }
                 });
-                
-                return allTermsPresent;
             });
-            
-            if (matches.length === 0) {
-                searchResults.innerHTML = '<div class="alert alert-info">No questions found matching your search.</div>';
-            } else {
-                // Analyze word frequencies in search results
-                const textsToAnalyze = matches.map(q => `${q.question} ${q.answer}`);
-                const frequencies = wordFrequencyAnalyzer.analyzeFrequency(textsToAnalyze, searchTerm);
 
-                searchResults.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="alert alert-success mb-0">Found ${matches.length} matching questions</div>
-                    </div>
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Frequency Analysis</h5>
-                        </div>
-                        <div class="card-body">
-                            <h6>Common Phrases:</h6>
-                            <div>
-                                ${frequencies.phrases
-                                    .slice(0, 25)
-                                    .map(([phrase, count]) => 
-                                        `<span class="badge badge-secondary mr-2 mb-1">${phrase} (${count})</span>`
-                                    ).join('')}
-                            </div>
-                            <h6>Common Words:</h6>
-                            <div class="mb-3">
-                                ${frequencies.singleWords
-                                    .slice(0, 10)
-                                    .map(([word, count]) => 
-                                        `<span class="badge badge-primary mr-2 mb-1">${word} (${count})</span>`
-                                    ).join('')}
-                            </div>
-                        </div>
-                    </div>
-                    ${matches.map(q => `
-                        <div class="card mb-3 ${q.isBeeset ? 'history-bee' : 'history-bowl'}">
-                            <div class="card-body">
-                                <h6 class="card-subtitle mb-2 text-muted">
-                                    Set: <a href="https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${q.setName}.pdf" 
-                                        target="_blank" rel="noopener noreferrer">${q.setName}</a>
-                                    (${q.isBeeset ? 'History Bee' : 'History Bowl'})
-                                </h6>
-                                <div class="card-text">${highlightSearchTerms(q.question, searchTerm)}</div>
-                                <div class="card-text"><strong>Answer:</strong> <span class="answer-text">${highlightSearchTerms(q.answer, searchTerm)}</span></div>
-                            </div>
-                        </div>
-                    `).join('')}
-                `;
-            }
+            selectedQuestions = [...matches];
+            updateSelectedCount();
+            displaySearchResults(matches);
         }
 
         // Add debounce function at the top
@@ -1747,26 +1756,31 @@
         });
 
         function highlightSearchTerms(text, searchTerm) {
-            if (!text || !searchTerm) return text;
-            
-            // First decode any HTML entities that might be in the text
-            const textArea = document.createElement('textarea');
-            textArea.innerHTML = text;
-            let decodedText = textArea.value;
-            
-            // Split search terms and create pattern
+            if (!searchTerm) return text;
             const searchTerms = searchTerm.toLowerCase().split(' ').filter(term => term.length > 0);
-            const pattern = searchTerms.map(term => 
-                term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            ).join('|');
             
-            // Create regex that excludes HTML tags
-            const regex = new RegExp(`(?<!<[^>]*)(${pattern})(?![^<]*>)`, 'gi');
+            // Replace HTML tags with placeholders to preserve them
+            const placeholders = [];
+            const textWithoutTags = text.replace(/<[^>]+>/g, match => {
+                placeholders.push(match);
+                return `__TAG${placeholders.length - 1}__`;
+            });
             
-            // Add highlighting while preserving HTML
-            decodedText = decodedText.replace(regex, match => `<mark>${match}</mark>`);
+            // Highlight search terms
+            let highlightedText = textWithoutTags;
+            searchTerms.forEach(term => {
+                const regex = new RegExp(term, 'gi');
+                highlightedText = highlightedText.replace(regex, match => 
+                    `<mark class="search-highlight">${match}</mark>`
+                );
+            });
             
-            return decodedText;
+            // Restore HTML tags
+            placeholders.forEach((tag, index) => {
+                highlightedText = highlightedText.replace(`__TAG${index}__`, tag);
+            });
+            
+            return highlightedText;
         }
 
         function showResult(isCorrect, correctAnswer) {
@@ -2070,6 +2084,437 @@
                 }
             }
         });
+
+        let selectedQuestions = [];
+
+        function initializeSelectedQuestions(matches) {
+            selectedQuestions = [...matches];
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const countElement = document.getElementById('selectedCount');
+            countElement.textContent = `${selectedQuestions.length} questions selected`;
+        }
+
+        function toggleAllQuestions() {
+            const checkboxes = document.querySelectorAll('.question-selector');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+            });
+            
+            selectedQuestions = allChecked ? [] : [...matches];
+            updateSelectedCount();
+        }
+
+        function practiceSelectedQuestions() {
+            if (selectedQuestions.length === 0) return;
+            
+            // Store selected questions for practice
+            localStorage.setItem('practiceQuestions', JSON.stringify(selectedQuestions));
+            
+            // Hide search modal and show practice modal
+            $('#resultsModal').modal('hide');
+            $('#practiceModal').modal('show');
+            
+            // Initialize practice session
+            initializePracticeSession();
+        }
+
+        let practiceQuestionIndex = 0;
+
+        function initializePracticeSession() {
+            const practiceQuestions = JSON.parse(localStorage.getItem('practiceQuestions'));
+            if (!practiceQuestions || practiceQuestions.length === 0) return;
+            
+            practiceQuestionIndex = 0;
+            displayPracticeQuestion(practiceQuestions[practiceQuestionIndex]);
+        }
+
+        let practiceWordIndex = 0;
+        let practiceWordInterval;
+        let practiceWords = [];
+        let isPracticeBuzzed = false;
+
+        function displayPracticeQuestion(question) {
+            const practiceModalBody = document.getElementById('practiceModalBody');
+            practiceWords = question.question.split(/\s+/);
+            practiceWordIndex = 0;
+            isPracticeBuzzed = false;
+            
+            practiceModalBody.innerHTML = `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            Set: ${question.setName} 
+                            (${question.isBeeset ? 'History Bee' : 'History Bowl'})
+                        </h6>
+                        <div class="mb-3">
+                            <label for="practiceSpeed" class="form-label">Reading Speed</label>
+                            <input type="range" class="form-range" id="practiceSpeed" 
+                                min="100" max="1000" value="500">
+                        </div>
+                        <div id="practiceQuestionText" class="card-text" style="font-weight: normal;"></div>
+                        <div class="mt-3">
+                            <input type="text" class="form-control" id="practiceAnswer" placeholder="Your answer..." disabled>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-danger" id="practiceBuzzBtn">Buzz (space)</button>
+                                <button class="btn btn-primary" id="practiceSubmitBtn" disabled>Submit (enter)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add event listeners
+            document.getElementById('practiceBuzzBtn').onclick = handlePracticeBuzz;
+            document.getElementById('practiceSubmitBtn').onclick = checkPracticeAnswer;
+            document.getElementById('practiceAnswer').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    checkPracticeAnswer();
+                }
+            });
+
+            startPracticeReading();
+        }
+
+        function startPracticeReading() {
+            const display = document.getElementById('practiceQuestionText');
+            const speedSlider = document.getElementById('practiceSpeed');
+            
+            clearInterval(practiceWordInterval);
+            
+            practiceWordInterval = setInterval(() => {
+                if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
+                    display.innerHTML += practiceWords[practiceWordIndex] + ' ';
+                    practiceWordIndex++;
+                } else if (practiceWordIndex >= practiceWords.length) {
+                    clearInterval(practiceWordInterval);
+                }
+            }, 1100 - parseInt(speedSlider.value));
+
+            // Add speed slider listener
+            speedSlider.addEventListener('input', () => {
+                clearInterval(practiceWordInterval);
+                practiceWordInterval = setInterval(() => {
+                    if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
+                        display.innerHTML += practiceWords[practiceWordIndex] + ' ';
+                        practiceWordIndex++;
+                    } else if (practiceWordIndex >= practiceWords.length) {
+                        clearInterval(practiceWordInterval);
+                    }
+                }, 1100 - parseInt(speedSlider.value));
+            });
+        }
+
+        function checkPracticeAnswer() {
+            const practiceQuestions = JSON.parse(localStorage.getItem('practiceQuestions'));
+            const currentQuestion = practiceQuestions[practiceQuestionIndex];
+            const userAnswer = document.getElementById('practiceAnswer').value.toLowerCase().trim();
+            const correctAnswer = currentQuestion.answer.replace(/<[^>]+>/g, '').toLowerCase();
+            const speedSlider = document.getElementById('practiceSpeed');
+            const currentSpeed = speedSlider.value;
+            
+            // Show full question with HTML tags
+            document.getElementById('practiceQuestionText').innerHTML = currentQuestion.question;
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `
+                <div class="alert ${userAnswer === correctAnswer ? 'alert-warning' : 'alert-warning'} mt-3">
+                    <strong>Correct Answer:</strong> ${currentQuestion.answer}
+                </div>
+                <button class="btn btn-primary mt-2" onclick="goToNextPractice()">Next Question (j)</button>
+            `;
+            
+            document.getElementById('practiceModalBody').appendChild(resultDiv);
+            
+            // Restore speed slider value
+            document.getElementById('practiceSpeed').value = currentSpeed;
+        }
+
+        function handlePracticeBuzz() {
+            if (isPracticeBuzzed) return;
+            
+            isPracticeBuzzed = true;
+            clearInterval(practiceWordInterval);
+            const answerInput = document.getElementById('practiceAnswer');
+            answerInput.disabled = false;
+            document.getElementById('practiceSubmitBtn').disabled = false;
+            document.getElementById('practiceBuzzBtn').disabled = true;
+            answerInput.focus(); // Focus on input when buzzing
+        }
+
+        // Prevent space from triggering button clicks when typing
+        document.addEventListener('keydown', (e) => {
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement.tagName === 'INPUT' && e.code === 'Space') {
+                e.stopPropagation(); // Prevent space from triggering buzz when typing
+            }
+        });
+
+        function displaySearchResults(matches) {
+            const searchResults = document.getElementById('searchResults');
+            
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div class="alert alert-info">No matches found.</div>';
+                return;
+            }
+
+            // Frequency analysis section
+            const texts = matches.map(q => q.question);
+            const searchTerm = document.getElementById('searchInput').value;
+            const frequencyResults = wordFrequencyAnalyzer.analyzeFrequency(texts, searchTerm);
+
+            const frequencyHtml = `
+                <div class="card frequency-analysis">
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <h6>Common Words</h6>
+                                <ul class="list-unstyled">
+                                    ${frequencyResults.singleWords.slice(0, 10).map(([word, count]) => 
+                                        `<li><small>${word} <span class="text-muted">(${count})</span></small></li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Common Phrases</h6>
+                                <ul class="list-unstyled">
+                                    ${frequencyResults.phrases.slice(0, 25).map(([phrase, count]) => 
+                                        `<li><small>${phrase} <span class="text-muted">(${count})</span></small></li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Search results section
+            const resultsHtml = matches.map((q, index) => `
+                <div class="card search-result-card ${q.isBeeset ? 'history-bee' : 'history-bowl'}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="form-check">
+                                <input class="form-check-input question-selector" 
+                                    type="checkbox" 
+                                    value="${index}" 
+                                    id="check-${index}" 
+                                    checked>
+                                <label class="form-check-label" for="check-${index}">
+                                    <small>Select for practice</small>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Set: ${q.setName} 
+                                (${q.isBeeset ? 'History Bee' : 'History Bowl'})
+                            </small>
+                        </div>
+                        <div class="card-text">
+                            ${highlightSearchTerms(q.question, searchTerm)}
+                        </div>
+                        <div class="card-text mt-2 text-muted">
+                            <p>Answer: ${highlightSearchTerms(q.answer, searchTerm)}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            searchResults.innerHTML = frequencyHtml + resultsHtml;
+        }
+
+        let practiceState = {
+            questions: [],
+            currentIndex: 0,
+            lastIndex: -1,
+            words: [],
+            wordIndex: 0,
+            interval: null,
+            isBuzzed: false
+        };
+
+        function initializePracticeQuestions() {
+            practiceState.questions = JSON.parse(localStorage.getItem('practiceQuestions'));
+            if (!practiceState.questions || practiceState.questions.length === 0) return;
+            
+            practiceState.currentIndex = getRandomPracticeIndex(practiceState.questions.length);
+            showPracticeQuestion(practiceState.questions[practiceState.currentIndex]);
+        }
+
+        function getRandomPracticeIndex(max) {
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * max);
+            } while (newIndex === practiceState.lastIndex && max > 1);
+            practiceState.lastIndex = newIndex;
+            return newIndex;
+        }
+
+        function showPracticeQuestion(question) {
+            practiceState.words = question.question.split(/\s+/);
+            practiceState.wordIndex = 0;
+            practiceState.isBuzzed = false;
+            
+            const practiceDiv = document.createElement('div');
+            practiceDiv.innerHTML = `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            Set: ${question.setName} 
+                            (${question.isBeeset ? 'History Bee' : 'History Bowl'})
+                        </h6>
+                        <div class="mb-3">
+                            <label for="practiceSpeed" class="form-label">Reading Speed</label>
+                            <input type="range" class="form-range" id="practiceSpeed" 
+                                min="100" max="1000" value="500">
+                        </div>
+                        <div id="practiceQuestionDisplay" class="card-text"></div>
+                        <div class="mt-3">
+                            <input type="text" class="form-control" id="practiceAnswerInput" 
+                                placeholder="Your answer..." disabled>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-danger" id="practiceBuzzBtn">Buzz (space)</button>
+                                <button class="btn btn-primary" id="practiceSubmitBtn" disabled>Submit (enter)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('practiceModalBody').innerHTML = '';
+            document.getElementById('practiceModalBody').appendChild(practiceDiv);
+            
+            setupPracticeListeners();
+            startPracticeWords();
+        }
+
+        function setupPracticeListeners() {
+            document.getElementById('practiceBuzzBtn').onclick = handlePracticeBuzz;
+            document.getElementById('practiceSubmitBtn').onclick = submitPracticeAnswer;
+            
+            document.addEventListener('keydown', handlePracticeKeypress);
+        }
+
+        function handlePracticeKeypress(e) {
+            if (!document.getElementById('practiceModal').classList.contains('show')) return;
+            
+            if (e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                if (!practiceState.isBuzzed) handlePracticeBuzz();
+            } else if (e.code === 'Enter' && !e.repeat) {
+                if (practiceState.isBuzzed) submitPracticeAnswer();
+            } else if (e.code === 'KeyJ' && !e.repeat) {
+                const nextBtn = document.querySelector('[onclick="goToNextPractice()"]');
+                if (nextBtn) goToNextPractice();
+            }
+        }
+
+        function startPracticeWords() {
+            const display = document.getElementById('practiceQuestionDisplay');
+            const speedSlider = document.getElementById('practiceSpeed');
+            
+            clearInterval(practiceWordInterval); // Clear any existing interval
+            
+            practiceWordInterval = setInterval(() => {
+                if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
+                    display.innerHTML += practiceWords[practiceWordIndex] + ' ';
+                    practiceWordIndex++;
+                } else if (practiceWordIndex >= practiceWords.length) {
+                    clearInterval(practiceWordInterval);
+                }
+            }, 1100 - parseInt(speedSlider.value));
+        }
+
+        function submitPracticeAnswer() {
+            const question = practiceState.questions[practiceState.currentIndex];
+            const userAnswer = document.getElementById('practiceAnswerInput').value.toLowerCase().trim();
+            const correctAnswer = question.answer.replace(/<[^>]+>/g, '').toLowerCase();
+            
+            // Show full question
+            document.getElementById('practiceQuestionDisplay').innerHTML = question.question;
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `
+                <div class="alert ${userAnswer === correctAnswer ? 'alert-success' : 'alert-danger'} mt-3">
+                    <strong>Correct Answer:</strong> ${question.answer}
+                </div>
+                <button class="btn btn-primary mt-2" onclick="goToNextPractice()">Next Question (j)</button>
+            `;
+            
+            document.getElementById('practiceModalBody').appendChild(resultDiv);
+        }
+
+        // Add this function to handle main button states
+        function updateMainButtonStates(disable) {
+            const mainButtons = ['buzz', 'submit', 'next'].forEach(id => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = disable;
+                    button.style.opacity = disable ? '0.5' : '1';
+                }
+            });
+        }
+
+        // Main event listener for keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            const anyModalOpen = Array.from(document.querySelectorAll('.modal')).some(modal => 
+                modal.classList.contains('show')
+            );
+            
+            if (anyModalOpen) {
+                updateMainButtonStates(true);
+                
+                const practiceModal = document.getElementById('practiceModal');
+                const isPracticeModalOpen = practiceModal?.classList.contains('show');
+                
+                if (isPracticeModalOpen) {
+                    const practiceAnswer = document.getElementById('practiceAnswer');
+                    if (document.activeElement === practiceAnswer) return;
+                    
+                    if (e.code === 'Space' && !e.repeat) {
+                        e.preventDefault();
+                        const buzzBtn = document.getElementById('practiceBuzzBtn');
+                        if (buzzBtn && !buzzBtn.disabled) handlePracticeBuzz();
+                    } else if (e.code === 'Enter' && !e.repeat) {
+                        const submitBtn = document.getElementById('practiceSubmitBtn');
+                        if (submitBtn && !submitBtn.disabled) checkPracticeAnswer();
+                    } else if (e.code === 'KeyJ' && !e.repeat) {
+                        const nextBtn = document.querySelector('[onclick="goToNextPractice()"]');
+                        if (nextBtn) goToNextPractice();
+                    }
+                }
+            } else {
+                updateMainButtonStates(false);
+                
+                if (e.code === 'Enter' && !e.repeat) {
+                    const mainSubmitBtn = document.getElementById('submit');
+                    if (mainSubmitBtn && !mainSubmitBtn.disabled) checkAnswer();
+                } else if (e.code === 'Space' && !e.repeat) {
+                    const buzzBtn = document.getElementById('buzz');
+                    if (buzzBtn && !buzzBtn.disabled) handleBuzz();
+                } else if (e.code === 'KeyJ' && !e.repeat) {
+                    const nextBtn = document.getElementById('next');
+                    if (nextBtn && !nextBtn.disabled) nextQuestion();
+                }
+            }
+        });
+
+
+        function goToNextPractice() {
+            const practiceQuestions = JSON.parse(localStorage.getItem('practiceQuestions'));
+            if (practiceQuestionIndex >= practiceQuestions.length - 1) {
+                document.getElementById('practiceModalBody').innerHTML = `
+                    <div class="alert alert-success">
+                        Practice session complete! You've gone through all selected questions.
+                    </div>`;
+                return;
+            }
+            
+            practiceQuestionIndex = getRandomPracticeIndex(practiceQuestions.length);
+            displayPracticeQuestion(practiceQuestions[practiceQuestionIndex]);
+        }
     </script>
 
     <!-- Search Modal -->
@@ -2112,7 +2557,19 @@
                         <span>&times;</span>
                     </button>
                 </div>
-                <div class="modal-body" id="searchResults">
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <button class="btn btn-primary me-2" onclick="practiceSelectedQuestions()">
+                                Practice Selected Questions
+                            </button>
+                            <button class="btn btn-secondary" onclick="toggleAllQuestions()">
+                                Toggle Selection
+                            </button>
+                        </div>
+                        <span id="selectedCount" class="text-muted"></span>
+                    </div>
+                    <div id="searchResults"></div>
                 </div>
             </div>
         </div>
@@ -2156,6 +2613,24 @@
                 <div class="modal-body">
                     <div id="leaderboardList" class="list-group">
                         <!-- Leaderboard entries will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Practice Modal -->
+    <div class="modal fade practice-modal" id="practiceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Practice Selected Questions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="practiceModalBody">
+                    <div id="practiceQuestion"></div>
+                    <div id="practiceControls" class="mt-3">
+                        <button class="btn btn-primary" onclick="nextPracticeQuestion()">Next Question</button>
                     </div>
                 </div>
             </div>
