@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -10,6 +11,9 @@ app.use(cors());
 
 // Serve static files from public directory
 app.use(express.static('public'));
+
+// Serve audio files
+app.use('/audio', express.static('audio'));
 
 // Endpoint to get file listings
 app.get('/:folder', (req, res) => {
@@ -31,6 +35,15 @@ app.get('/:folder', (req, res) => {
 // Serve JSON files from sets and beeSets folders
 app.use('/sets', express.static('sets'));
 app.use('/beeSets', express.static('beeSets'));
+
+app.get('/api/firebase-config', (req, res) => {
+    res.json({
+        apiKey: process.env.FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        databaseURL: process.env.FIREBASE_DATABASE_URL
+    });
+});
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
