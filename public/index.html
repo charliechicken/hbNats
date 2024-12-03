@@ -36,7 +36,7 @@
                         authButton.textContent = 'Sign Out';
                         userStats.style.display = 'block';
                         
-                        // Listen for realtime updates
+                        // Listen for realtime updates of stats only
                         const userRef = window.db.ref('users/' + user.uid);
                         userRef.on('value', (snapshot) => {
                             const userData = snapshot.val() || { 
@@ -53,9 +53,6 @@
                                 usernameDisplay.textContent = userData.username || 'User';
                             }
                         });
-                        
-                        // Load user progress history
-                        await loadUserProgress(user.uid);
                     } else {
                         authButton.textContent = 'Sign In';
                         userStats.style.display = 'none';
