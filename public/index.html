@@ -13,60 +13,60 @@
     
         <script>
         // Wait for Firebase SDKs to load
-        window.onload = function() {
-            // Firebase configuration
-            const firebaseConfig = {
-                apiKey: "AIzaSyA_bM4yUQkO0ZPowDtfysAhIU7YmNsHmQc",
-                authDomain: "historybowl-4440f.firebaseapp.com",
-                projectId: "historybowl-4440f",
-                databaseURL: "https://historybowl-4440f-default-rtdb.firebaseio.com"
-            };
-
-            // Initialize Firebase
-            firebase.initializeApp(firebaseConfig);
-
-            // Make Firebase services available globally
-            window.auth = firebase.auth();
-            window.db = firebase.database();
-
-            // Add debug logging
-            console.log('Firebase initialized');
-            window.auth.onAuthStateChanged((user) => {
-                console.log('Auth state changed:', user ? user.uid : 'logged out');
-            });
-            
-            // Test Firebase connection
-            window.db.ref().once('value')
-                .then(() => console.log('Realtime Database connected'))
-                .catch(error => console.error('Database error:', error));
-
-            // Auth state observer
-            window.auth.onAuthStateChanged(async (user) => {
-                const authButton = document.getElementById('authButton');
-                const userStats = document.getElementById('userStats');
-                const usernameDisplay = document.getElementById('usernameDisplay');
+        window.onload = async function() {
+            try {
+                // Fetch Firebase config from server
+                const response = await fetch('/api/firebase-config');
+                const firebaseConfig = await response.json();
                 
-                if (user) {
-                    authButton.textContent = 'Sign Out';
-                    userStats.style.display = 'block';
+                // Initialize Firebase
+                firebase.initializeApp(firebaseConfig);
+
+                // Make Firebase services available globally
+                window.auth = firebase.auth();
+                window.db = firebase.database();
+
+                console.log('Firebase initialized');
+                window.auth.onAuthStateChanged(async (user) => {
+                    const authButton = document.getElementById('authButton');
+                    const userStats = document.getElementById('userStats');
+                    const usernameDisplay = document.getElementById('usernameDisplay');
                     
-                    // Listen for realtime updates
-                    const userRef = window.db.ref('users/' + user.uid);
-                    userRef.on('value', (snapshot) => {
-                        const userData = snapshot.val() || { 
-                            progress: { correctAnswers: 0, questionsAnswered: 0 },
-                            username: 'User'
-                        };
-                        document.getElementById('correctCount').textContent = userData.progress.correctAnswers;
-                        document.getElementById('totalCount').textContent = userData.progress.questionsAnswered;
-                        usernameDisplay.textContent = userData.username;
-                    });
-                } else {
-                    authButton.textContent = 'Sign In';
-                    userStats.style.display = 'none';
-                    usernameDisplay.textContent = '';
-                }
-            });
+                    if (user) {
+                        authButton.textContent = 'Sign Out';
+                        userStats.style.display = 'block';
+                        
+                        // Listen for realtime updates
+                        const userRef = window.db.ref('users/' + user.uid);
+                        userRef.on('value', (snapshot) => {
+                            const userData = snapshot.val() || { 
+                                progress: { correctAnswers: 0, questionsAnswered: 0 },
+                                username: 'User'
+                            };
+                            
+                            // Update stats display
+                            document.getElementById('correctCount').textContent = userData.progress?.correctAnswers || 0;
+                            document.getElementById('totalCount').textContent = userData.progress?.questionsAnswered || 0;
+                            
+                            // Update username display
+                            if (usernameDisplay) {
+                                usernameDisplay.textContent = userData.username || 'User';
+                            }
+                        });
+                        
+                        // Load user progress history
+                        await loadUserProgress(user.uid);
+                    } else {
+                        authButton.textContent = 'Sign In';
+                        userStats.style.display = 'none';
+                        if (usernameDisplay) {
+                            usernameDisplay.textContent = '';
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing Firebase:', error);
+            }
         };
 
         // Firebase helper functions
