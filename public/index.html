@@ -1045,6 +1045,9 @@
     </style>
 </head>
 <body>
+    <audio id="buzzSound" src="audio/buzz.mp3"></audio>
+    <audio id="correctSound" src="audio/correct.mp3"></audio>
+    <audio id="incorrectSound" src="audio/incorrect.mp3"></audio>
 
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
@@ -1174,7 +1177,20 @@
             singleWordBlacklist: new Set(['empire', 'battle', 'war']),
 
             // Two-word phrases that should be blacklisted unless part of longer phrases
-            twoWordBlacklist: new Set(['battle of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of']),
+            twoWordBlacklist: new Set(['battle of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of', 'rather than', 'war between', 'fired on', 'surprise attack', 'us president', 'war’s battle', 'two countries']),
+
+            // Add this after the twoWordBlacklist declaration (around line 1176)
+            threeWordBlacklist: new Set([
+                'battle of the', 'war of the', 'empire of the', 'siege of the', 'site of the',
+                'attack on the', 'series of the', 'republic of the', 'leader of the',
+                'treaty of the', 'defeat at the', 'sack of the', 'death of the',
+                'control of the', 'fall of the', 'plague of the', 'holder of the',
+                'league of the', 'part of the', 'king of the', 'group of the',
+                'author of the', 'body of the', 'kingdom of the', 'invasion of the',
+                'son of the', 'form of the', 'act of the', 'victory at the',
+                'history of the', 'island of the', 'council of the', 'town of the',
+                'law of the', 'war between the', 'fired on the', 'attack on the', 'war’s battle of'
+            ]),
 
             hasBlacklistedWords(phrase) {
                 const words = phrase.split(' ');
@@ -1201,6 +1217,14 @@
                 if (words.length === 2) {
                     const twoWordPhrase = words.join(' ');
                     if (this.twoWordBlacklist.has(twoWordPhrase)) {
+                        return true;
+                    }
+                }
+                
+                // For three-word phrases
+                if (words.length === 3) {
+                    const threeWordPhrase = words.join(' ');
+                    if (this.threeWordBlacklist.has(threeWordPhrase)) {
                         return true;
                     }
                 }
@@ -2124,10 +2148,9 @@
             
             // Hide search modal and show practice modal
             $('#resultsModal').modal('hide');
-            $('#practiceModal').modal('show');
             
-            // Initialize practice session
-            initializePracticeSession();
+            // Start practice with the selected questions directly
+            startPractice(selectedQuestions);
         }
 
         let practiceQuestionIndex = 0;
@@ -2146,12 +2169,12 @@
         let isPracticeBuzzed = false;
 
         function displayPracticeQuestion(question) {
-            const practiceModalBody = document.getElementById('practiceModalBody');
-            practiceWords = question.question.split(/\s+/);
-            practiceWordIndex = 0;
-            isPracticeBuzzed = false;
+            practiceState.words = question.question.split(/\s+/);
+            practiceState.wordIndex = 0;
+            practiceState.isBuzzed = false;
             
-            practiceModalBody.innerHTML = `
+            const practiceDiv = document.createElement('div');
+            practiceDiv.innerHTML = `
                 <div class="card mb-3">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2 text-muted">
@@ -2161,11 +2184,12 @@
                         <div class="mb-3">
                             <label for="practiceSpeed" class="form-label">Reading Speed</label>
                             <input type="range" class="form-range" id="practiceSpeed" 
-                                min="100" max="1000" value="500">
+                                min="100" max="1000" value="${practiceState.speed}">
                         </div>
-                        <div id="practiceQuestionText" class="card-text" style="font-weight: normal;"></div>
+                        <div id="practiceQuestionDisplay" class="card-text"></div>
                         <div class="mt-3">
-                            <input type="text" class="form-control" id="practiceAnswer" placeholder="Your answer..." disabled>
+                            <input type="text" class="form-control" id="practiceAnswerInput" 
+                                placeholder="Your answer..." disabled>
                             <div class="d-flex gap-2 mt-2">
                                 <button class="btn btn-danger" id="practiceBuzzBtn">Buzz (space)</button>
                                 <button class="btn btn-primary" id="practiceSubmitBtn" disabled>Submit (enter)</button>
@@ -2174,46 +2198,38 @@
                     </div>
                 </div>
             `;
-
-            // Add event listeners
-            document.getElementById('practiceBuzzBtn').onclick = handlePracticeBuzz;
-            document.getElementById('practiceSubmitBtn').onclick = checkPracticeAnswer;
-            document.getElementById('practiceAnswer').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    checkPracticeAnswer();
-                }
-            });
-
-            startPracticeReading();
+            
+            document.getElementById('practiceModalBody').innerHTML = '';
+            document.getElementById('practiceModalBody').appendChild(practiceDiv);
+            
+            setupPracticeListeners();
+            startPracticeWords();
         }
 
-        function startPracticeReading() {
-            const display = document.getElementById('practiceQuestionText');
+        function startPracticeWords() {
+            const display = document.getElementById('practiceQuestionDisplay');
             const speedSlider = document.getElementById('practiceSpeed');
             
-            clearInterval(practiceWordInterval);
+            clearInterval(practiceState.interval);
             
-            practiceWordInterval = setInterval(() => {
-                if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
-                    display.innerHTML += practiceWords[practiceWordIndex] + ' ';
-                    practiceWordIndex++;
-                } else if (practiceWordIndex >= practiceWords.length) {
-                    clearInterval(practiceWordInterval);
+            // Only clear display and reset index if this is a new question
+            if (practiceState.wordIndex === 0) {
+                display.innerHTML = '';
+            }
+            
+            // If changing speed mid-question, keep existing words displayed
+            if (practiceState.wordIndex > 0) {
+                display.innerHTML = practiceState.words.slice(0, practiceState.wordIndex).join(' ') + ' ';
+            }
+            
+            practiceState.interval = setInterval(() => {
+                if (practiceState.wordIndex < practiceState.words.length && !practiceState.isBuzzed) {
+                    display.innerHTML += practiceState.words[practiceState.wordIndex] + ' ';
+                    practiceState.wordIndex++;
+                } else if (practiceState.wordIndex >= practiceState.words.length) {
+                    clearInterval(practiceState.interval);
                 }
             }, 1100 - parseInt(speedSlider.value));
-
-            // Add speed slider listener
-            speedSlider.addEventListener('input', () => {
-                clearInterval(practiceWordInterval);
-                practiceWordInterval = setInterval(() => {
-                    if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
-                        display.innerHTML += practiceWords[practiceWordIndex] + ' ';
-                        practiceWordIndex++;
-                    } else if (practiceWordIndex >= practiceWords.length) {
-                        clearInterval(practiceWordInterval);
-                    }
-                }, 1100 - parseInt(speedSlider.value));
-            });
         }
 
         function checkPracticeAnswer() {
@@ -2225,15 +2241,9 @@
             const currentSpeed = speedSlider.value;
             
             // Show full question with HTML tags
-            document.getElementById('practiceQuestionText').innerHTML = currentQuestion.question;
+            document.getElementById('practiceQuestionDisplay').innerHTML = currentQuestion.question;
             
-            const resultDiv = document.createElement('div');
-            resultDiv.innerHTML = `
-                <div class="alert ${userAnswer === correctAnswer ? 'alert-warning' : 'alert-warning'} mt-3">
-                    <strong>Correct Answer:</strong> ${currentQuestion.answer}
-                </div>
-                <button class="btn btn-primary mt-2" onclick="goToNextPractice()">Next Question (j)</button>
-            `;
+
             
             document.getElementById('practiceModalBody').appendChild(resultDiv);
             
@@ -2242,15 +2252,20 @@
         }
 
         function handlePracticeBuzz() {
-            if (isPracticeBuzzed) return;
+            if (practiceState.isBuzzed) return;
             
-            isPracticeBuzzed = true;
-            clearInterval(practiceWordInterval);
-            const answerInput = document.getElementById('practiceAnswer');
-            answerInput.disabled = false;
-            document.getElementById('practiceSubmitBtn').disabled = false;
-            document.getElementById('practiceBuzzBtn').disabled = true;
-            answerInput.focus(); // Focus on input when buzzing
+            practiceState.isBuzzed = true;
+            clearInterval(practiceState.interval);
+            
+            const answerInput = document.getElementById('practiceAnswerInput');
+            const submitBtn = document.getElementById('practiceSubmitBtn');
+            const buzzBtn = document.getElementById('practiceBuzzBtn');
+            
+            if (answerInput) answerInput.disabled = false;
+            if (submitBtn) submitBtn.disabled = false;
+            if (buzzBtn) buzzBtn.disabled = true;
+            
+            if (answerInput) answerInput.focus();
         }
 
         // Prevent space from triggering button clicks when typing
@@ -2289,7 +2304,7 @@
                             <div class="col-md-6">
                                 <h6>Common Phrases</h6>
                                 <ul class="list-unstyled">
-                                    ${frequencyResults.phrases.slice(0, 25).map(([phrase, count]) => 
+                                    ${frequencyResults.phrases.slice(0, 100).map(([phrase, count]) => 
                                         `<li><small>${phrase} <span class="text-muted">(${count})</span></small></li>`
                                     ).join('')}
                                 </ul>
@@ -2335,47 +2350,64 @@
         let practiceState = {
             questions: [],
             currentIndex: 0,
-            lastIndex: -1,
+            unseenQuestions: [],
             words: [],
             wordIndex: 0,
             interval: null,
-            isBuzzed: false
+            isBuzzed: false,
+            speed: 500 // Add this to track speed across questions
         };
 
         function initializePracticeQuestions() {
             practiceState.questions = JSON.parse(localStorage.getItem('practiceQuestions'));
             if (!practiceState.questions || practiceState.questions.length === 0) return;
             
-            practiceState.currentIndex = getRandomPracticeIndex(practiceState.questions.length);
-            showPracticeQuestion(practiceState.questions[practiceState.currentIndex]);
-        }
-
-        function getRandomPracticeIndex(max) {
-            let newIndex;
-            do {
-                newIndex = Math.floor(Math.random() * max);
-            } while (newIndex === practiceState.lastIndex && max > 1);
-            practiceState.lastIndex = newIndex;
-            return newIndex;
+            // Initialize unseen questions with all indices
+            practiceState.unseenQuestions = [...Array(practiceState.questions.length).keys()];
+            
+            // Get first random question
+            if (practiceState.unseenQuestions.length > 0) {
+                const randomIndex = Math.floor(Math.random() * practiceState.unseenQuestions.length);
+                practiceState.currentIndex = practiceState.unseenQuestions[randomIndex];
+                practiceState.unseenQuestions.splice(randomIndex, 1);
+                
+                // Show first question
+                showPracticeQuestion(practiceState.questions[practiceState.currentIndex]);
+            } else {
+                console.error('No practice questions available');
+            }
         }
 
         function showPracticeQuestion(question) {
+            if (!question) {
+                console.error('Invalid question provided');
+                return;
+            }
+
             practiceState.words = question.question.split(/\s+/);
             practiceState.wordIndex = 0;
             practiceState.isBuzzed = false;
+            
+            const questionsRemaining = practiceState.unseenQuestions.length;
+            const totalQuestions = practiceState.questions.length;
             
             const practiceDiv = document.createElement('div');
             practiceDiv.innerHTML = `
                 <div class="card mb-3">
                     <div class="card-body">
-                        <h6 class="card-subtitle mb-2 text-muted">
-                            Set: ${question.setName} 
-                            (${question.isBeeset ? 'History Bee' : 'History Bowl'})
-                        </h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="card-subtitle mb-0 text-muted">
+                                Set: ${question.setName} 
+                                (${question.isBeeset ? 'History Bee' : 'History Bowl'})
+                            </h6>
+                            <span class="badge bg-primary">
+                                ${questionsRemaining} question${questionsRemaining !== 1 ? 's' : ''} remaining
+                            </span>
+                        </div>
                         <div class="mb-3">
                             <label for="practiceSpeed" class="form-label">Reading Speed</label>
                             <input type="range" class="form-range" id="practiceSpeed" 
-                                min="100" max="1000" value="500">
+                                min="100" max="1000" value="${practiceState.speed}">
                         </div>
                         <div id="practiceQuestionDisplay" class="card-text"></div>
                         <div class="mt-3">
@@ -2401,6 +2433,13 @@
             document.getElementById('practiceBuzzBtn').onclick = handlePracticeBuzz;
             document.getElementById('practiceSubmitBtn').onclick = submitPracticeAnswer;
             
+            const speedSlider = document.getElementById('practiceSpeed');
+            speedSlider.addEventListener('input', (e) => {
+                practiceState.speed = parseInt(e.target.value); // Save speed to state
+                clearInterval(practiceState.interval);
+                startPracticeWords(); // This will now continue from current position
+            });
+            
             document.addEventListener('keydown', handlePracticeKeypress);
         }
 
@@ -2418,39 +2457,46 @@
             }
         }
 
-        function startPracticeWords() {
-            const display = document.getElementById('practiceQuestionDisplay');
-            const speedSlider = document.getElementById('practiceSpeed');
-            
-            clearInterval(practiceWordInterval); // Clear any existing interval
-            
-            practiceWordInterval = setInterval(() => {
-                if (practiceWordIndex < practiceWords.length && !isPracticeBuzzed) {
-                    display.innerHTML += practiceWords[practiceWordIndex] + ' ';
-                    practiceWordIndex++;
-                } else if (practiceWordIndex >= practiceWords.length) {
-                    clearInterval(practiceWordInterval);
-                }
-            }, 1100 - parseInt(speedSlider.value));
-        }
-
         function submitPracticeAnswer() {
+            // Add submission lock
+            if (practiceState.isSubmitting) return;
+            practiceState.isSubmitting = true;
+
+            if (!practiceState.questions || !practiceState.questions[practiceState.currentIndex]) {
+                console.error('No current question found');
+                practiceState.isSubmitting = false;
+                return;
+            }
+
             const question = practiceState.questions[practiceState.currentIndex];
-            const userAnswer = document.getElementById('practiceAnswerInput').value.toLowerCase().trim();
+            const userAnswer = document.getElementById('practiceAnswerInput')?.value.toLowerCase().trim() || '';
             const correctAnswer = question.answer.replace(/<[^>]+>/g, '').toLowerCase();
             
+            // Clear any existing result divs
+            const existingResults = document.querySelectorAll('.practice-result');
+            existingResults.forEach(el => el.remove());
+            
             // Show full question
-            document.getElementById('practiceQuestionDisplay').innerHTML = question.question;
+            const displayElement = document.getElementById('practiceQuestionDisplay');
+            if (displayElement) {
+                displayElement.innerHTML = question.question;
+            }
             
             const resultDiv = document.createElement('div');
+            resultDiv.className = 'practice-result'; // Add class for easy cleanup
             resultDiv.innerHTML = `
-                <div class="alert ${userAnswer === correctAnswer ? 'alert-success' : 'alert-danger'} mt-3">
+                <div class="alert ${userAnswer === correctAnswer ? 'alert-warning' : 'alert-warning'} mt-3">
                     <strong>Correct Answer:</strong> ${question.answer}
                 </div>
                 <button class="btn btn-primary mt-2" onclick="goToNextPractice()">Next Question (j)</button>
             `;
             
-            document.getElementById('practiceModalBody').appendChild(resultDiv);
+            document.getElementById('practiceModalBody')?.appendChild(resultDiv);
+
+            // Reset submission lock after a delay
+            setTimeout(() => {
+                practiceState.isSubmitting = false;
+            }, 500);
         }
 
         // Add this function to handle main button states
@@ -2466,61 +2512,106 @@
 
         // Main event listener for keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            const anyModalOpen = Array.from(document.querySelectorAll('.modal')).some(modal => 
-                modal.classList.contains('show')
-            );
-            
-            if (anyModalOpen) {
-                updateMainButtonStates(true);
-                
-                const practiceModal = document.getElementById('practiceModal');
-                const isPracticeModalOpen = practiceModal?.classList.contains('show');
-                
-                if (isPracticeModalOpen) {
-                    const practiceAnswer = document.getElementById('practiceAnswer');
-                    if (document.activeElement === practiceAnswer) return;
-                    
-                    if (e.code === 'Space' && !e.repeat) {
-                        e.preventDefault();
-                        const buzzBtn = document.getElementById('practiceBuzzBtn');
-                        if (buzzBtn && !buzzBtn.disabled) handlePracticeBuzz();
-                    } else if (e.code === 'Enter' && !e.repeat) {
-                        const submitBtn = document.getElementById('practiceSubmitBtn');
-                        if (submitBtn && !submitBtn.disabled) checkPracticeAnswer();
-                    } else if (e.code === 'KeyJ' && !e.repeat) {
-                        const nextBtn = document.querySelector('[onclick="goToNextPractice()"]');
-                        if (nextBtn) goToNextPractice();
-                    }
-                }
-            } else {
-                updateMainButtonStates(false);
-                
-                if (e.code === 'Enter' && !e.repeat) {
-                    const mainSubmitBtn = document.getElementById('submit');
-                    if (mainSubmitBtn && !mainSubmitBtn.disabled) checkAnswer();
-                } else if (e.code === 'Space' && !e.repeat) {
-                    const buzzBtn = document.getElementById('buzz');
-                    if (buzzBtn && !buzzBtn.disabled) handleBuzz();
-                } else if (e.code === 'KeyJ' && !e.repeat) {
-                    const nextBtn = document.getElementById('next');
-                    if (nextBtn && !nextBtn.disabled) goToNextPractice();
-                }
-            }
-        });
+    const practiceModal = document.getElementById('practiceModal');
+    const isPracticeModalOpen = practiceModal?.classList.contains('show');
+    const searchInput = document.getElementById('searchInput');
+    const practiceAnswerInput = document.getElementById('practiceAnswerInput');
+    
+    // If typing in any input field, allow default behavior
+    if (document.activeElement.tagName === 'INPUT') {
+        // Only handle Enter for submission in practice mode
+        if (isPracticeModalOpen && e.code === 'Enter' && !e.repeat && practiceState.isBuzzed) {
+            e.preventDefault();
+            submitPracticeAnswer();
+        }
+        return; // Allow all other keys when typing in inputs
+    }
+    
+    // Handle practice mode shortcuts when not typing
+    if (isPracticeModalOpen) {
+        if (e.code === 'Space' && !e.repeat) {
+            e.preventDefault();
+            if (!practiceState.isBuzzed) handlePracticeBuzz();
+        } else if (e.code === 'Enter' && !e.repeat) {
+            if (practiceState.isBuzzed) submitPracticeAnswer();
+        } else if (e.code === 'KeyJ' && !e.repeat) {
+            const nextBtn = document.querySelector('[onclick="goToNextPractice()"]');
+            if (nextBtn) goToNextPractice();
+        }
+    }
+});
 
 
         function goToNextPractice() {
-            const practiceQuestions = JSON.parse(localStorage.getItem('practiceQuestions'));
-            if (practiceQuestionIndex >= practiceQuestions.length - 1) {
-                document.getElementById('practiceModalBody').innerHTML = `
-                    <div class="alert alert-success">
-                        Practice session complete! You've gone through all selected questions.
-                    </div>`;
+            const nextIndex = getNextPracticeIndex();
+            
+            if (nextIndex === -1) {
+                return; // Practice session complete
+            }
+            
+            practiceState.currentIndex = nextIndex;
+            practiceState.isBuzzed = false;
+            showPracticeQuestion(practiceState.questions[practiceState.currentIndex]);
+        }
+
+        function startPractice(selectedQuestions) {
+            if (!selectedQuestions || selectedQuestions.length === 0) {
+                console.error('No questions selected for practice');
                 return;
             }
             
-            practiceQuestionIndex = getRandomPracticeIndex(practiceQuestions.length);
-            displayPracticeQuestion(practiceQuestions[practiceQuestionIndex]);
+            // Initialize practice state with selected questions
+            practiceState = {
+                questions: selectedQuestions,
+                currentIndex: 0,
+                unseenQuestions: [...Array(selectedQuestions.length).keys()],
+                words: [],
+                wordIndex: 0,
+                interval: null,
+                isBuzzed: false,
+                speed: document.getElementById('practiceSpeed')?.value || 500
+            };
+
+            // Get first random question
+            const randomIndex = Math.floor(Math.random() * practiceState.unseenQuestions.length);
+            practiceState.currentIndex = practiceState.unseenQuestions[randomIndex];
+            practiceState.unseenQuestions.splice(randomIndex, 1);
+            
+            // Show practice modal
+            $('#practiceModal').modal('show');
+            
+            // Show first question
+            showPracticeQuestion(practiceState.questions[practiceState.currentIndex]);
+        }
+
+        function handlePracticeClick() {
+            const selectedQuestions = JSON.parse(localStorage.getItem('practiceQuestions'));
+            if (!selectedQuestions || selectedQuestions.length === 0) {
+                alert('Please select questions to practice first');
+                return;
+            }
+            
+            $('#resultsModal').modal('hide');
+            startPractice(selectedQuestions);
+        }
+
+        function getNextPracticeIndex() {
+            if (!practiceState.unseenQuestions || practiceState.unseenQuestions.length === 0) {
+                // No more unseen questions, practice session complete
+                document.getElementById('practiceModalBody').innerHTML = `
+                    <div class="alert alert-success">
+                        Practice session complete! You've gone through all ${practiceState.questions.length} selected questions.
+                    </div>`;
+                return -1;
+            }
+            
+            // Get random index from remaining unseen questions
+            const randomIndex = Math.floor(Math.random() * practiceState.unseenQuestions.length);
+            const nextQuestionIndex = practiceState.unseenQuestions[randomIndex];
+            // Remove this index from unseenQuestions
+            practiceState.unseenQuestions.splice(randomIndex, 1);
+            
+            return nextQuestionIndex;
         }
     </script>
 
