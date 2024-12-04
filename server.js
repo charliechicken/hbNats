@@ -18,38 +18,26 @@ app.use(express.static('public'));
 // Serve audio files
 app.use('/audio', express.static('audio'));
 
-// Remove or comment out these routes as they conflict
-// app.get('/:folder', async (req, res) => {...});
-// app.get('/sets/:file', async (req, res) => {...});
-// app.get('/beeSets/:file', async (req, res) => {...});
-// app.get('/:folder/:file', async (req, res) => {...});
+// Endpoint to get file listings
+app.get('/:folder', (req, res) => {
+    const folder = req.params.folder;
+    if (folder !== 'sets' && folder !== 'beeSets') {
+        return res.status(404).json({ error: 'Folder not found' });
+    }
 
-// Add these static middleware routes
-app.use('/sets', express.static(path.join(__dirname, '..', 'sets')));
-app.use('/beeSets', express.static(path.join(__dirname, '..', 'beeSets')));
-
-// Keep the directory listing routes
-app.get('/sets', async (req, res) => {
+    const folderPath = path.join(__dirname, folder);
     try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'sets'));
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
+        const files = fs.readdirSync(folderPath)
+            .filter(file => file.endsWith('.json'));
+        res.json(files);
     } catch (error) {
-        console.error('Error reading sets directory:', error);
-        res.status(500).json({ error: 'Failed to read sets directory' });
+        res.status(500).json({ error: 'Error reading directory' });
     }
 });
 
-app.get('/beeSets', async (req, res) => {
-    try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'beeSets'));
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
-    } catch (error) {
-        console.error('Error reading beeSets directory:', error);
-        res.status(500).json({ error: 'Failed to read beeSets directory' });
-    }
-});
+// Serve JSON files from sets and beeSets folders
+app.use('/sets', express.static('sets'));
+app.use('/beeSets', express.static('beeSets'));
 
 app.get('/api/firebase-config', (req, res) => {
     res.json({
@@ -179,10 +167,12 @@ async function getRandomQuestion() {
         
         const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
         
-        // Clean the question text but preserve power markers
+        // Clean the question text
         const cleanQuestion = randomQuestion.question
-            .replace(/<\/?[^>]+(>|$)/g, '')  // Remove HTML tags
-            .replace(/\([^+*][^)]*\)/g, '')  // Remove parentheses except (+) and (*)
+            .replace(/<\/?[^>]+(>|$)/g, '') // Remove HTML tags
+            .replace(/\(\+\)/g, '')         // Remove power marker
+            .replace(/\(\*\)/g, '')         // Remove star marker
+            .replace(/\([^)]+\)/g, '')      // Remove other markers in parentheses
             .replace(/\s+/g, ' ')           // Normalize whitespace
             .trim();
         
@@ -307,55 +297,6 @@ function startWordRevealing(gameState, speed = 400) {
     }, speed);
 }
 
-function normalizeAnswer(answer) {
-    if (!answer) return [];
-    
-    // Convert to lowercase and remove extra spaces
-    answer = answer.toLowerCase().trim();
-    
-    // Extract bold/underlined text (text between various tags)
-    const tagMatches = answer.match(/<[bu]>(.*?)<\/[bu]>|_(.*?)_/g);
-    
-    if (tagMatches) {
-        // Get the emphasized text
-        const emphasizedAnswers = tagMatches.map(match => 
-            match.replace(/<[^>]+>|_/g, '').trim()
-        );
-        
-        // Remove all HTML tags for the full answer
-        const fullAnswer = answer.replace(/<[^>]+>/g, '').trim()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, ' ');
-            
-        // Return both the emphasized parts and the full answer
-        return [...new Set([...emphasizedAnswers, fullAnswer])];
-    }
-    
-    // If no tags, just clean and return the full answer
-    return [answer.replace(/<[^>]+>/g, '') // Remove all HTML tags
-             .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-             .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-             .trim()];
-}
-
-function checkAnswer(userAnswer, correctAnswer) {
-    // If no answer given, count as incorrect
-    if (!userAnswer.trim()) return false;
-    
-    // Normalize both answers
-    const normalizedUserAnswer = normalizeAnswer(userAnswer)[0]; // Take first normalized answer
-    const acceptedAnswers = normalizeAnswer(correctAnswer);
-    
-    // Check if user's answer matches any of the accepted answers
-    return acceptedAnswers.some(accepted => {
-        const cleanAccepted = accepted.toLowerCase().trim();
-        // Only return true if the answers are very similar (prevent single letter matches)
-        return normalizedUserAnswer === cleanAccepted || 
-               (normalizedUserAnswer.length > 3 && cleanAccepted.length > 3 && 
-                (normalizedUserAnswer.includes(cleanAccepted) || cleanAccepted.includes(normalizedUserAnswer)));
-    });
-}
-
 wss.on('connection', (ws) => {
     let username = null;
 
@@ -445,7 +386,13 @@ wss.on('connection', (ws) => {
                 case 'submit-answer':
                     if (gameState.isAnswering && gameState.buzzOrder[0] === username) {
                         const userAnswer = data.answer.toLowerCase().trim();
-                        const isCorrect = checkAnswer(userAnswer, gameState.currentQuestion.answer);
+                        const fullAnswer = gameState.currentQuestion.answer
+                            .replace(/<\/?[bu]>/g, '')  // Remove all <b> and <u> tags
+                            .toLowerCase()
+                            .trim();
+                        
+                        // Check if user's answer is included in the full answer
+                        const isCorrect = fullAnswer.includes(userAnswer);
 
                         if (isCorrect) {
                             // Calculate points
