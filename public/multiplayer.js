@@ -358,6 +358,10 @@ function handleBuzz(data) {
     gameState.isAnswering = true;
     const display = document.getElementById('question-display');
     
+    // Add buzz icon next to the last word
+    const currentText = display.textContent;
+    display.innerHTML = `${currentText} <span class="buzz-icon">🔔</span>`;
+    
     // Disable buzz button for everyone
     const buzzButton = document.getElementById('buzz-button');
     if (buzzButton) {
@@ -527,7 +531,7 @@ function startNewGame() {
         gameState.endQuestionTimer = null;
     }
     
-    // Remove any existing countdown timer from display immediately
+    // Remove any existing countdown timer and buzz icon from display immediately
     const existingTimer = document.querySelector('.countdown-timer');
     if (existingTimer) {
         existingTimer.remove();
