@@ -7,6 +7,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 const { WebSocketServer } = require('ws');
 const http = require('http');
+const https = require('https');
 
 // Enable CORS
 app.use(cors());
@@ -62,7 +63,11 @@ app.get('/api/firebase-config', (req, res) => {
     });
 });
 
-// Update the directory listing and file serving routes
+// Serve static JSON files from parent directory
+app.use('/sets', express.static(path.join(__dirname, '..', 'sets')));
+app.use('/beeSets', express.static(path.join(__dirname, '..', 'beeSets')));
+
+// Directory listing endpoints
 app.get('/sets', async (req, res) => {
     try {
         const files = await fs.readdir(path.join(__dirname, '..', 'sets'));
@@ -85,6 +90,7 @@ app.get('/beeSets', async (req, res) => {
     }
 });
 
+// Individual file endpoints
 app.get('/sets/:file', async (req, res) => {
     try {
         const filePath = path.join(__dirname, '..', 'sets', req.params.file);
@@ -124,7 +130,16 @@ app.get('/:folder/:file', async (req, res) => {
     }
 });
 
-const server = http.createServer(app)
+const server = http.createServer(app);
+
+// Add SSL handling for production
+if (process.env.NODE_ENV === 'production') {
+    const server = https.createServer({
+        cert: process.env.SSL_CERT,
+        key: process.env.SSL_KEY
+    }, app);
+}
+
 const wss = new WebSocketServer({ server });
 
 // Single room state
