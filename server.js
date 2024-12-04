@@ -83,7 +83,8 @@ const gameState = {
     wordIndex: 0,
     currentInterval: null,
     isGameInProgress: false,
-    isQuestionEnded: false
+    isQuestionEnded: false,
+    speed: 800, // Default speed
 };
 
 function broadcast(message) {
@@ -284,7 +285,7 @@ function calculatePoints(question, revealedWords) {
 }
 
 // Helper function to handle word revealing
-function startWordRevealing(gameState, speed = 400) {
+function startWordRevealing(gameState) {
     if (gameState.currentInterval) {
         clearInterval(gameState.currentInterval);
     }
@@ -304,7 +305,7 @@ function startWordRevealing(gameState, speed = 400) {
         } else {
             gameState.wordIndex++;
         }
-    }, speed);
+    }, gameState.speed);
 }
 
 function normalizeAnswer(answer) {
@@ -411,7 +412,7 @@ wss.on('connection', (ws) => {
                             question
                         });
 
-                        startWordRevealing(gameState, 400);
+                        startWordRevealing(gameState);
                     }
                     break;
 
@@ -514,7 +515,7 @@ wss.on('connection', (ws) => {
                                     players: gameState.players
                                 });
 
-                                startWordRevealing(gameState, data.speed || 400);
+                                startWordRevealing(gameState);
                             }
                         }
                     }
@@ -548,7 +549,7 @@ wss.on('connection', (ws) => {
                         question
                     });
 
-                    startWordRevealing(gameState, 400);
+                    startWordRevealing(gameState);
                     break;
 
                 case 'speed-change':
@@ -562,7 +563,7 @@ wss.on('connection', (ws) => {
                     // If there's an active interval, restart it with new speed
                     if (gameState.currentInterval) {
                         clearInterval(gameState.currentInterval);
-                        startWordRevealing(gameState, data.speed);
+                        startWordRevealing(gameState);
                     }
                     break;
 
@@ -584,7 +585,7 @@ wss.on('connection', (ws) => {
                         
                         // If words are being revealed, restart the process
                         if (gameState.currentInterval) {
-                            startWordRevealing(gameState, gameState.speed || 400);
+                            startWordRevealing(gameState);
                         }
                     }
                     break;

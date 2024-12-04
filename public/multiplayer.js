@@ -13,7 +13,7 @@ const gameState = {
     revealedWords: [],
     wordIndex: 0,
     interval: null,
-    speed: 400,
+    speed: 800,
     players: [],
     isAnswering: false,
     currentInterval: null,  // Track current interval
@@ -37,20 +37,20 @@ function addSpeedControl() {
     const speedControl = `
         <div class="control-group mt-3">
             <label for="speed">Reading Speed</label>
-            <input type="range" id="speed" min="600" max="1000" value="800" class="form-control">
+            <input type="range" id="speed" min="200" max="800" value="${gameState.speed}" class="form-control">
         </div>
     `;
     const controlsDiv = document.querySelector('.controls');
     if (controlsDiv) {
         controlsDiv.insertAdjacentHTML('beforeend', speedControl);
         
-        // Send speed change to server and invert the value
+        // Send speed change to server
         document.getElementById('speed').addEventListener('input', (e) => {
             const rawValue = parseInt(e.target.value);
-            const invertedSpeed = 1000 - rawValue; // Invert the speed value
+            gameState.speed = rawValue;
             safeSend(JSON.stringify({
                 type: 'speed-change',
-                speed: invertedSpeed
+                speed: rawValue
             }));
         });
     }
@@ -220,8 +220,7 @@ function handleWebSocketMessage(data) {
         case 'speed-changed':
             const speedSlider = document.getElementById('speed');
             if (speedSlider) {
-                const invertedValue = 1100 - data.speed;
-                speedSlider.value = invertedValue;
+                speedSlider.value = data.speed;
             }
             gameState.speed = data.speed;
             break;
@@ -241,10 +240,21 @@ function updatePlayersList(players) {
 }
 
 function handleGameStart(data) {
-    // Clear any existing intervals
+    // Clear any existing intervals and timers
     if (gameState.currentInterval) {
         clearInterval(gameState.currentInterval);
         gameState.currentInterval = null;
+    }
+    
+    if (gameState.endQuestionTimer) {
+        clearInterval(gameState.endQuestionTimer);
+        gameState.endQuestionTimer = null;
+        
+        // Remove any existing countdown timer from display
+        const existingTimer = document.querySelector('.countdown-timer');
+        if (existingTimer) {
+            existingTimer.remove();
+        }
     }
     
     // Hide start button and store in localStorage to persist across refreshes
@@ -511,6 +521,18 @@ function startNewGame() {
     // Reset local state
     buzzed = false;
     
+    // Clear any existing timers and remove countdown display
+    if (gameState.endQuestionTimer) {
+        clearInterval(gameState.endQuestionTimer);
+        gameState.endQuestionTimer = null;
+    }
+    
+    // Remove any existing countdown timer from display immediately
+    const existingTimer = document.querySelector('.countdown-timer');
+    if (existingTimer) {
+        existingTimer.remove();
+    }
+    
     // Reset all player items to remove buzzed class
     const playerItems = document.querySelectorAll('.player-item');
     playerItems.forEach(item => {
@@ -522,6 +544,12 @@ function startNewGame() {
     if (buzzButton) {
         buzzButton.disabled = false;
         buzzButton.style.opacity = '1';
+    }
+    
+    // Clear the display before sending next question request
+    const display = document.getElementById('question-display');
+    if (display) {
+        display.innerHTML = '';
     }
     
     safeSend(JSON.stringify({
