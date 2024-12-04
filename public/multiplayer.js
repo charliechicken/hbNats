@@ -20,7 +20,9 @@ const gameState = {
     buzzOrder: [],
     gameStartTime: null,
     isDoublePoints: false,
-    doublePointsTimeout: null
+    doublePointsTimeout: null,
+    endQuestionTimer: null,
+    isQuestionEnded: false
 };
 
 // Check if game was already started when page loads
@@ -207,6 +209,12 @@ function handleWebSocketMessage(data) {
         case 'all-buzzed':
             handleAllBuzzed(data);
             break;
+        case 'question-ended':
+            handleQuestionEnd(data);
+            break;
+        case 'time-expired':
+            handleTimeExpired(data);
+            break;
     }
 }
 
@@ -248,51 +256,122 @@ function handleGameStart(data) {
 }
 
 function handleWordRevealed(data) {
-    // Simply update the display with the words we received
     const display = document.getElementById('question-display');
     if (display) {
         display.textContent = data.words.join(' ');
     }
-}
-
-function buzz() {
-    if (buzzed) return;  // Only check local state
     
-    safeSend(JSON.stringify({
-        type: 'buzz',
-        username
-    }));
+    // If this is the last word and no one has buzzed
+    if (data.isLastWord && !gameState.isAnswering && !buzzed) {
+        // Clear any existing timer
+        if (gameState.endQuestionTimer) {
+            clearInterval(gameState.endQuestionTimer);
+        }
+        
+        // Start 5-second countdown
+        let countdown = 5;
+        const countdownDiv = document.createElement('div');
+        countdownDiv.className = 'countdown-timer';
+        display.appendChild(countdownDiv);
+        
+        gameState.endQuestionTimer = setInterval(() => {
+            countdown--;
+            countdownDiv.textContent = `Time remaining: ${countdown}s`;
+            
+            if (countdown <= 0) {
+                clearInterval(gameState.endQuestionTimer);
+                countdownDiv.remove();
+                safeSend(JSON.stringify({
+                    type: 'time-expired',
+                    username
+                }));
+            }
+        }, 1000);
+    }
 }
 
-function handleBuzz(data) {
-    // Update game state for ALL clients when someone buzzes
-    gameState.isAnswering = true;
-    buzzed = data.username === username;
+function handleTimeExpired(data) {
+    if (gameState.endQuestionTimer) {
+        clearInterval(gameState.endQuestionTimer);
+    }
     
     const display = document.getElementById('question-display');
-    display.innerHTML += `
-        <div class="alert alert-warning mt-3">
-            ${data.username} has buzzed in!
+    display.innerHTML = `
+        <div class="alert alert-info">Time's up!</div>
+        <div class="full-question mb-3">
+            ${data.fullQuestion}
         </div>
+        <div class="alert alert-secondary">
+            The answer was: ${data.answer}
+        </div>
+        <div class="question-info">
+            <p>Set: <a href="${data.pdfLink}" target="_blank">${data.setName}</a></p>
+            <p>Category: ${data.category}</p>
+        </div>
+        <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
     `;
-
-    // Disable buzz button for everyone until next question
+    
     const buzzButton = document.getElementById('buzz-button');
     if (buzzButton) {
         buzzButton.disabled = true;
-        buzzButton.style.opacity = '0.5';  // Grey out the button
+        buzzButton.style.opacity = '0.5';
     }
+}
 
+function buzz() {
+    if (gameState.isAnswering) return; // Prevent buzzing if someone is answering
+    
+    const buzzButton = document.getElementById('buzz-button');
+    if (buzzButton && !buzzButton.disabled) {
+        buzzed = true;
+        buzzButton.disabled = true;
+        buzzButton.style.opacity = '0.5';
+        
+        safeSend(JSON.stringify({
+            type: 'buzz',
+            username
+        }));
+    }
+}
+
+function handleBuzz(data) {
+    gameState.isAnswering = true;
+    const display = document.getElementById('question-display');
+    
+    // Disable buzz button for everyone
+    const buzzButton = document.getElementById('buzz-button');
+    if (buzzButton) {
+        buzzButton.disabled = true;
+        buzzButton.style.opacity = '0.5';
+    }
+    
+    // Update display for the person who buzzed
     if (data.username === username) {
-        document.getElementById('answer-input').style.display = 'block';
-        document.getElementById('answer-input').querySelector('input').focus();
+        const answerContainer = document.querySelector('.answer-container');
+        const answerInput = document.getElementById('answer-input');
+        
+        if (answerContainer) {
+            answerContainer.style.display = 'block';
+        }
+        
+        if (answerInput) {
+            answerInput.value = '';
+            answerInput.focus();
+        }
+    } else {
+        // Show who buzzed for other players
+        display.innerHTML += `<div class="alert alert-info mt-3">${data.username} has buzzed in!</div>`;
     }
 }
 
 function submitAnswer() {
-    const answerInput = document.getElementById('answer-input').querySelector('input');
-    const answer = answerInput.value.trim();
+    const answerInput = document.getElementById('answer-input');
+    if (!answerInput) {
+        console.error('Answer input not found');
+        return;
+    }
     
+    const answer = answerInput.value.trim();
     if (!answer) return;
     
     safeSend(JSON.stringify({
@@ -301,8 +380,12 @@ function submitAnswer() {
         answer
     }));
     
+    // Clear and hide the answer container
     answerInput.value = '';
-    document.getElementById('answer-input').style.display = 'none';
+    const answerContainer = document.querySelector('.answer-container');
+    if (answerContainer) {
+        answerContainer.style.display = 'none';
+    }
 }
 
 function showError(message) {
@@ -330,6 +413,8 @@ function handleGameState(data) {
 }
 
 function handleAnswerSubmitted(data) {
+    gameState.isAnswering = false; // Reset answering state after answer is submitted
+    
     const display = document.getElementById('question-display');
     updatePlayersList(data.players);
     
@@ -605,4 +690,68 @@ function showPointsPopup(points, playerName) {
         popup.classList.remove('show');
         setTimeout(() => popup.remove(), 500);
     }, 2000);
+}
+
+// Update event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const submitButton = document.getElementById('submit-button');
+    if (submitButton) {
+        submitButton.addEventListener('click', submitAnswer);
+    }
+    
+    document.addEventListener('keydown', (e) => {
+        const activeElement = document.activeElement;
+        
+        // Prevent space from triggering when typing in input
+        if (activeElement.tagName === 'INPUT') {
+            if (e.code === 'Space') {
+                e.stopPropagation();
+            } else if (e.code === 'Enter' && !e.repeat) {
+                e.preventDefault();
+                submitAnswer();
+            }
+            return;
+        }
+        
+        // Handle space for buzz
+        if (e.code === 'Space' && !e.repeat && !gameState.isAnswering) {
+            e.preventDefault();
+            buzz();
+        }
+    });
+});
+
+function handleQuestionEnd(data) {
+    const display = document.getElementById('question-display');
+    
+    // Clear any existing intervals
+    if (gameState.currentInterval) {
+        clearInterval(gameState.currentInterval);
+        gameState.currentInterval = null;
+    }
+    
+    if (gameState.endQuestionTimer) {
+        clearTimeout(gameState.endQuestionTimer);
+        gameState.endQuestionTimer = null;
+    }
+
+    display.innerHTML = `
+        <div class="alert alert-info">End of Question</div>
+        <div class="full-question mb-3">
+            ${data.fullQuestion}
+        </div>
+        <div class="question-info">
+            <p>Set: <a href="${data.pdfLink}" target="_blank">${data.setName}</a></p>
+            <p>Category: ${data.category}</p>
+            <p>Answer: ${data.answer}</p>
+        </div>
+        <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
+    `;
+
+    // Disable buzz button
+    const buzzButton = document.getElementById('buzz-button');
+    if (buzzButton) {
+        buzzButton.disabled = true;
+        buzzButton.style.opacity = '0.5';
+    }
 }

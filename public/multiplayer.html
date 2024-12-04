@@ -298,6 +298,17 @@
             font-size: 0.9rem;
             display: none;
         }
+
+        .countdown-timer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1.2em;
+}
     </style>
 </head>
 <body>
@@ -331,9 +342,9 @@
 
             <div class="controls text-center">
                 <button id="buzz-button" class="btn-buzz">BUZZ (Space)</button>
-                <div id="answer-input" style="display: none;" class="mt-3">
-                    <input type="text" class="form-control" placeholder="Your answer...">
-                    <button class="btn btn-primary mt-2">Submit (Enter)</button>
+                <div class="answer-container mt-3" style="display: none;">
+                    <input id="answer-input" type="text" class="form-control" placeholder="Your answer...">
+                    <button id="submit-button" class="btn btn-primary mt-2">Submit (Enter)</button>
                 </div>
             </div>
         </div>
