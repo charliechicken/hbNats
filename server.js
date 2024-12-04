@@ -18,26 +18,38 @@ app.use(express.static('public'));
 // Serve audio files
 app.use('/audio', express.static('audio'));
 
-// Endpoint to get file listings
-app.get('/:folder', (req, res) => {
-    const folder = req.params.folder;
-    if (folder !== 'sets' && folder !== 'beeSets') {
-        return res.status(404).json({ error: 'Folder not found' });
-    }
+// Remove or comment out these routes as they conflict
+// app.get('/:folder', async (req, res) => {...});
+// app.get('/sets/:file', async (req, res) => {...});
+// app.get('/beeSets/:file', async (req, res) => {...});
+// app.get('/:folder/:file', async (req, res) => {...});
 
-    const folderPath = path.join(__dirname, folder);
+// Add these static middleware routes
+app.use('/sets', express.static(path.join(__dirname, '..', 'sets')));
+app.use('/beeSets', express.static(path.join(__dirname, '..', 'beeSets')));
+
+// Keep the directory listing routes
+app.get('/sets', async (req, res) => {
     try {
-        const files = fs.readdirSync(folderPath)
-            .filter(file => file.endsWith('.json'));
-        res.json(files);
+        const files = await fs.readdir(path.join(__dirname, '..', 'sets'));
+        const jsonFiles = files.filter(file => file.endsWith('.json'));
+        res.json(jsonFiles);
     } catch (error) {
-        res.status(500).json({ error: 'Error reading directory' });
+        console.error('Error reading sets directory:', error);
+        res.status(500).json({ error: 'Failed to read sets directory' });
     }
 });
 
-// Serve JSON files from sets and beeSets folders
-app.use('/sets', express.static('sets'));
-app.use('/beeSets', express.static('beeSets'));
+app.get('/beeSets', async (req, res) => {
+    try {
+        const files = await fs.readdir(path.join(__dirname, '..', 'beeSets'));
+        const jsonFiles = files.filter(file => file.endsWith('.json'));
+        res.json(jsonFiles);
+    } catch (error) {
+        console.error('Error reading beeSets directory:', error);
+        res.status(500).json({ error: 'Failed to read beeSets directory' });
+    }
+});
 
 app.get('/api/firebase-config', (req, res) => {
     res.json({
@@ -70,7 +82,8 @@ const gameState = {
     revealedWords: [],
     wordIndex: 0,
     currentInterval: null,
-    isGameInProgress: false
+    isGameInProgress: false,
+    isQuestionEnded: false
 };
 
 function broadcast(message) {
@@ -272,29 +285,75 @@ function calculatePoints(question, revealedWords) {
 
 // Helper function to handle word revealing
 function startWordRevealing(gameState, speed = 400) {
-    // Clear any existing interval first
     if (gameState.currentInterval) {
         clearInterval(gameState.currentInterval);
-        gameState.currentInterval = null;
     }
     
-    const words = gameState.currentQuestion.question.split(/\s+/);
-    gameState.isAnswering = false;  // Make sure to reset answering state
-    
     gameState.currentInterval = setInterval(() => {
-        if (gameState.wordIndex < words.length && !gameState.isAnswering) {
-            gameState.revealedWords.push(words[gameState.wordIndex]);
-            gameState.wordIndex++;
-            
-            broadcast({
-                type: 'word-revealed',
-                words: gameState.revealedWords
-            });
-        } else {
+        const words = gameState.currentQuestion.question.split(' ');
+        const isLastWord = gameState.wordIndex >= words.length - 1;
+        
+        broadcast({
+            type: 'word-revealed',
+            words: words.slice(0, gameState.wordIndex + 1),
+            isLastWord: isLastWord
+        });
+        
+        if (isLastWord) {
             clearInterval(gameState.currentInterval);
-            gameState.currentInterval = null;
+        } else {
+            gameState.wordIndex++;
         }
     }, speed);
+}
+
+function normalizeAnswer(answer) {
+    if (!answer) return [];
+    
+    // Convert to lowercase and remove extra spaces
+    answer = answer.toLowerCase().trim();
+    
+    // Extract bold/underlined text (text between various tags)
+    const tagMatches = answer.match(/<[bu]>(.*?)<\/[bu]>|_(.*?)_/g);
+    
+    if (tagMatches) {
+        // Get the emphasized text
+        const emphasizedAnswers = tagMatches.map(match => 
+            match.replace(/<[^>]+>|_/g, '').trim()
+        );
+        
+        // Remove all HTML tags for the full answer
+        const fullAnswer = answer.replace(/<[^>]+>/g, '').trim()
+            .replace(/[^a-z0-9\s]/g, '')
+            .replace(/\s+/g, ' ');
+            
+        // Return both the emphasized parts and the full answer
+        return [...new Set([...emphasizedAnswers, fullAnswer])];
+    }
+    
+    // If no tags, just clean and return the full answer
+    return [answer.replace(/<[^>]+>/g, '') // Remove all HTML tags
+             .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+             .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+             .trim()];
+}
+
+function checkAnswer(userAnswer, correctAnswer) {
+    // If no answer given, count as incorrect
+    if (!userAnswer.trim()) return false;
+    
+    // Normalize both answers
+    const normalizedUserAnswer = normalizeAnswer(userAnswer)[0]; // Take first normalized answer
+    const acceptedAnswers = normalizeAnswer(correctAnswer);
+    
+    // Check if user's answer matches any of the accepted answers
+    return acceptedAnswers.some(accepted => {
+        const cleanAccepted = accepted.toLowerCase().trim();
+        // Only return true if the answers are very similar (prevent single letter matches)
+        return normalizedUserAnswer === cleanAccepted || 
+               (normalizedUserAnswer.length > 3 && cleanAccepted.length > 3 && 
+                (normalizedUserAnswer.includes(cleanAccepted) || cleanAccepted.includes(normalizedUserAnswer)));
+    });
 }
 
 wss.on('connection', (ws) => {
@@ -386,13 +445,7 @@ wss.on('connection', (ws) => {
                 case 'submit-answer':
                     if (gameState.isAnswering && gameState.buzzOrder[0] === username) {
                         const userAnswer = data.answer.toLowerCase().trim();
-                        const fullAnswer = gameState.currentQuestion.answer
-                            .replace(/<\/?[bu]>/g, '')  // Remove all <b> and <u> tags
-                            .toLowerCase()
-                            .trim();
-                        
-                        // Check if user's answer is included in the full answer
-                        const isCorrect = fullAnswer.includes(userAnswer);
+                        const isCorrect = checkAnswer(userAnswer, gameState.currentQuestion.answer);
 
                         if (isCorrect) {
                             // Calculate points
@@ -468,6 +521,7 @@ wss.on('connection', (ws) => {
                     break;
 
                 case 'next-question':
+                    gameState.isQuestionEnded = false;
                     gameState.isGameInProgress = true;
                     gameState.isAnswering = false;
                     const question = await getRandomQuestion();
@@ -523,6 +577,36 @@ wss.on('connection', (ws) => {
                         if (gameState.currentInterval) {
                             startWordRevealing(gameState, gameState.speed || 400);
                         }
+                    }
+                    break;
+
+                case 'question-ended':
+                    if (!gameState.isQuestionEnded) {
+                        gameState.isQuestionEnded = true;
+                        broadcast({
+                            type: 'question-ended',
+                            fullQuestion: gameState.currentQuestion.question,
+                            answer: gameState.currentQuestion.answer,
+                            setName: gameState.currentQuestion.setName,
+                            category: gameState.currentQuestion.category,
+                            pdfLink: gameState.currentQuestion.pdfLink
+                        });
+                    }
+                    break;
+
+                case 'time-expired':
+                    if (gameState.isGameInProgress && !gameState.isAnswering) {
+                        clearInterval(gameState.currentInterval);
+                        gameState.currentInterval = null;
+                        
+                        broadcast({
+                            type: 'time-expired',
+                            fullQuestion: gameState.currentQuestion.question,
+                            answer: gameState.currentQuestion.answer,
+                            setName: gameState.currentQuestion.setName,
+                            category: gameState.currentQuestion.category,
+                            pdfLink: gameState.currentQuestion.pdfLink
+                        });
                     }
                     break;
             }
