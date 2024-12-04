@@ -156,16 +156,164 @@
             color: #000;
             font-weight: bold;
         }
+
+        .username-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .username-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .username-form h2 {
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+
+        .username-form input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1.1rem;
+        }
+
+        .username-form input:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+
+        .username-form button {
+            width: 100%;
+            padding: 0.75rem;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .username-form button:hover {
+            background: #0056b3;
+        }
+
+        .username-form .error {
+            color: #dc3545;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .setup-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .join-form {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .join-form h2 {
+            color: #1a237e;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        #username {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1.5rem;
+            border: 2px solid #e3e3e3;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+        }
+
+        #username:focus {
+            border-color: #1a237e;
+            box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.2);
+            outline: none;
+        }
+
+        #join-button {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1a237e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #join-button:hover {
+            background: #0d1757;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(26, 35, 126, 0.3);
+        }
+
+        #join-button:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            color: #dc3545;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="setup-screen" class="text-center">
-            <div class="form-group">
-                <input type="text" id="username" class="form-control mb-3" placeholder="Enter your username">
-                <button onclick="joinGame()" class="btn btn-primary">Join Game</button>
+    <div id="setup-screen" class="setup-screen">
+        <div class="join-form">
+            <h2>Join Multiplayer</h2>
+            <input type="text" id="username" placeholder="Enter your username" 
+                   minlength="3" maxlength="15" required>
+            <div id="error-message" class="error-message">
+                Username must be 3-15 characters
             </div>
+            <button id="join-button" onclick="joinGame()">Join Game</button>
         </div>
+    </div>
+
+    <div class="container">
 
         <div id="game-room" class="game-room" style="display: none;">
             <div class="players-list">
