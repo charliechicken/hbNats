@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,38 +18,28 @@ app.use(express.static('public'));
 // Serve audio files
 app.use('/audio', express.static('audio'));
 
-// Remove or comment out these routes as they conflict
-// app.get('/:folder', async (req, res) => {...});
-// app.get('/sets/:file', async (req, res) => {...});
-// app.get('/beeSets/:file', async (req, res) => {...});
-// app.get('/:folder/:file', async (req, res) => {...});
+// Add these routes before the WebSocket setup
+app.get('/:folder', async (req, res) => {
+    const folder = req.params.folder;
+    if (folder !== 'sets' && folder !== 'beeSets') {
+        return res.status(404).json({ error: 'Folder not found' });
+    }
 
-// Add these static middleware routes
-app.use('/sets', express.static(path.join(__dirname, '..', 'sets')));
-app.use('/beeSets', express.static(path.join(__dirname, '..', 'beeSets')));
-
-// Keep the directory listing routes
-app.get('/sets', async (req, res) => {
     try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'sets'));
+        // Use absolute path from project root
+        const folderPath = path.join(process.cwd(), folder);
+        const files = await fs.readdir(folderPath);
         const jsonFiles = files.filter(file => file.endsWith('.json'));
         res.json(jsonFiles);
     } catch (error) {
-        console.error('Error reading sets directory:', error);
-        res.status(500).json({ error: 'Failed to read sets directory' });
+        console.error(`Error reading ${folder} directory:`, error);
+        res.status(500).json({ error: `Failed to read ${folder} directory` });
     }
 });
 
-app.get('/beeSets', async (req, res) => {
-    try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'beeSets'));
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
-    } catch (error) {
-        console.error('Error reading beeSets directory:', error);
-        res.status(500).json({ error: 'Failed to read beeSets directory' });
-    }
-});
+// Add static middleware after the directory listing routes
+app.use('/sets', express.static(path.join(process.cwd(), 'sets')));
+app.use('/beeSets', express.static(path.join(process.cwd(), 'beeSets')));
 
 app.get('/api/firebase-config', (req, res) => {
     res.json({
@@ -153,13 +143,15 @@ async function getRandomQuestion() {
         
         // Get all JSON files from both directories
         for (const repo of repositories) {
-            const repoPath = path.join(__dirname, repo);
-            const files = fs.readdirSync(repoPath);
-            const jsonFiles = files.filter(file => file.endsWith('.json'))
+            const folderPath = path.join(process.cwd(), repo);
+            const files = await fs.readdir(folderPath);
+            const jsonFiles = files
+                .filter(file => file.endsWith('.json'))
                 .map(file => ({
-                    path: path.join(repoPath, file),
+                    path: path.join(folderPath, file),
                     name: file,
-                    repo: repo
+                    repo: repo,
+                    download_url: `/${repo}/${file}`
                 }));
             allFiles = allFiles.concat(jsonFiles);
         }
@@ -170,7 +162,7 @@ async function getRandomQuestion() {
         
         // Get random file
         const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
-        const data = fs.readFileSync(randomFile.path, 'utf8');
+        const data = await fs.readFile(randomFile.path, 'utf8');
         const questionSet = JSON.parse(data);
         
         // Get random question from set
@@ -195,7 +187,8 @@ async function getRandomQuestion() {
             question: cleanQuestion,
             originalQuestion: randomQuestion.question, // Keep original for scoring
             setName: randomFile.name.replace('.json', ''),
-            isBeeset: randomFile.repo === 'beeSets'
+            isBeeset: randomFile.repo === 'beeSets',
+            pdfLink: `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${randomFile.name.replace('.json', '')}.pdf`
         };
     } catch (error) {
         console.error('Error in getRandomQuestion:', error);
