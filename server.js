@@ -176,9 +176,6 @@ async function getRandomQuestion() {
         // Clean the question text
         const cleanQuestion = randomQuestion.question
             .replace(/<\/?[^>]+(>|$)/g, '') // Remove HTML tags
-            .replace(/\(\+\)/g, '')         // Remove power marker
-            .replace(/\(\*\)/g, '')         // Remove star marker
-            .replace(/\([^)]+\)/g, '')      // Remove other markers in parentheses
             .replace(/\s+/g, ' ')           // Normalize whitespace
             .trim();
         
