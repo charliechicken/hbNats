@@ -552,7 +552,16 @@ wss.on('connection', (ws) => {
                     break;
 
                 case 'speed-change':
+                    gameState.speed = data.speed;
+                    // Broadcast speed change to all clients
+                    broadcast({
+                        type: 'speed-changed',
+                        speed: data.speed
+                    });
+                    
+                    // If there's an active interval, restart it with new speed
                     if (gameState.currentInterval) {
+                        clearInterval(gameState.currentInterval);
                         startWordRevealing(gameState, data.speed);
                     }
                     break;

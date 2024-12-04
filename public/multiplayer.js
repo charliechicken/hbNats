@@ -37,18 +37,20 @@ function addSpeedControl() {
     const speedControl = `
         <div class="control-group mt-3">
             <label for="speed">Reading Speed</label>
-            <input type="range" id="speed" min="200" max="800" value="400" class="form-control">
+            <input type="range" id="speed" min="600" max="1000" value="800" class="form-control">
         </div>
     `;
     const controlsDiv = document.querySelector('.controls');
     if (controlsDiv) {
         controlsDiv.insertAdjacentHTML('beforeend', speedControl);
         
-        // Only send speed change to server
+        // Send speed change to server and invert the value
         document.getElementById('speed').addEventListener('input', (e) => {
+            const rawValue = parseInt(e.target.value);
+            const invertedSpeed = 1000 - rawValue; // Invert the speed value
             safeSend(JSON.stringify({
                 type: 'speed-change',
-                speed: parseInt(e.target.value)
+                speed: invertedSpeed
             }));
         });
     }
@@ -214,6 +216,14 @@ function handleWebSocketMessage(data) {
             break;
         case 'time-expired':
             handleTimeExpired(data);
+            break;
+        case 'speed-changed':
+            const speedSlider = document.getElementById('speed');
+            if (speedSlider) {
+                const invertedValue = 1100 - data.speed;
+                speedSlider.value = invertedValue;
+            }
+            gameState.speed = data.speed;
             break;
     }
 }
