@@ -549,7 +549,6 @@ function handleAllBuzzed(data) {
         </div>
         <div class="question-info">
             <p>Set: <a href="${data.pdfLink}" target="_blank">${data.setName}</a></p>
-            <p>Category: ${data.category}</p>
         </div>
         <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
     `;

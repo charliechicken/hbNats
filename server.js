@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,41 +18,26 @@ app.use(express.static('public'));
 // Serve audio files
 app.use('/audio', express.static('audio'));
 
-// Ensure directories exist
-async function ensureDirectories() {
-    const dirs = ['sets', 'beeSets'];
-    for (const dir of dirs) {
-        try {
-            await fs.access(path.join(__dirname, dir));
-        } catch {
-            await fs.mkdir(path.join(__dirname, dir));
-        }
-    }
-}
-
-// Call this before setting up routes
-ensureDirectories().catch(err => {
-    console.error('Error creating directories:', err);
-    process.exit(1);
-});
-
 // Endpoint to get file listings
-app.get('/:folder', async (req, res) => {
+app.get('/:folder', (req, res) => {
     const folder = req.params.folder;
     if (folder !== 'sets' && folder !== 'beeSets') {
         return res.status(404).json({ error: 'Folder not found' });
     }
 
-    const folderPath = path.join(__dirname, '..', folder);
+    const folderPath = path.join(__dirname, folder);
     try {
-        const files = await fs.readdir(folderPath);
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
+        const files = fs.readdirSync(folderPath)
+            .filter(file => file.endsWith('.json'));
+        res.json(files);
     } catch (error) {
-        console.error(`Error reading ${folder} directory:`, error);
-        res.status(500).json({ error: `Failed to read ${folder} directory` });
+        res.status(500).json({ error: 'Error reading directory' });
     }
 });
+
+// Serve JSON files from sets and beeSets folders
+app.use('/sets', express.static('sets'));
+app.use('/beeSets', express.static('beeSets'));
 
 app.get('/api/firebase-config', (req, res) => {
     res.json({
@@ -61,73 +46,6 @@ app.get('/api/firebase-config', (req, res) => {
         projectId: process.env.FIREBASE_PROJECT_ID,
         databaseURL: process.env.FIREBASE_DATABASE_URL
     });
-});
-
-// Serve static JSON files from parent directory
-app.use('/sets', express.static(path.join(__dirname, '..', 'sets')));
-app.use('/beeSets', express.static(path.join(__dirname, '..', 'beeSets')));
-
-// Directory listing endpoints
-app.get('/sets', async (req, res) => {
-    try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'sets'));
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
-    } catch (error) {
-        console.error('Error reading sets directory:', error);
-        res.status(500).json({ error: 'Failed to read sets directory' });
-    }
-});
-
-app.get('/beeSets', async (req, res) => {
-    try {
-        const files = await fs.readdir(path.join(__dirname, '..', 'beeSets'));
-        const jsonFiles = files.filter(file => file.endsWith('.json'));
-        res.json(jsonFiles);
-    } catch (error) {
-        console.error('Error reading beeSets directory:', error);
-        res.status(500).json({ error: 'Failed to read beeSets directory' });
-    }
-});
-
-// Individual file endpoints
-app.get('/sets/:file', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, '..', 'sets', req.params.file);
-        const data = await fs.readFile(filePath, 'utf8');
-        res.json(JSON.parse(data));
-    } catch (error) {
-        console.error('Error reading file:', error);
-        res.status(500).json({ error: 'Failed to read question set' });
-    }
-});
-
-app.get('/beeSets/:file', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, '..', 'beeSets', req.params.file);
-        const data = await fs.readFile(filePath, 'utf8');
-        res.json(JSON.parse(data));
-    } catch (error) {
-        console.error('Error reading file:', error);
-        res.status(500).json({ error: 'Failed to read question set' });
-    }
-});
-
-// Serve JSON files from sets and beeSets folders
-app.get('/:folder/:file', async (req, res) => {
-    const { folder, file } = req.params;
-    if (folder !== 'sets' && folder !== 'beeSets') {
-        return res.status(404).json({ error: 'Folder not found' });
-    }
-
-    try {
-        const filePath = path.join(__dirname, '..', folder, file);
-        const data = await fs.readFile(filePath, 'utf8');
-        res.json(JSON.parse(data));
-    } catch (error) {
-        console.error(`Error reading file from ${folder}:`, error);
-        res.status(500).json({ error: `Failed to read file from ${folder}` });
-    }
 });
 
 const server = http.createServer(app);
@@ -222,7 +140,7 @@ async function getRandomQuestion() {
         // Get all JSON files from both directories
         for (const repo of repositories) {
             const repoPath = path.join(__dirname, repo);
-            const files = await fs.readdir(repoPath);
+            const files = fs.readdirSync(repoPath);
             const jsonFiles = files.filter(file => file.endsWith('.json'))
                 .map(file => ({
                     path: path.join(repoPath, file),
@@ -232,27 +150,38 @@ async function getRandomQuestion() {
             allFiles = allFiles.concat(jsonFiles);
         }
         
+        if (allFiles.length === 0) {
+            throw new Error('No question files found');
+        }
+        
         // Get random file
         const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
-        const data = await fs.readFile(randomFile.path, 'utf8');
+        const data = fs.readFileSync(randomFile.path, 'utf8');
         const questionSet = JSON.parse(data);
         
         // Get random question from set
         const tossups = questionSet.tossups.filter(q => q.question && q.answer);
-        const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
-        
-        if (!randomQuestion) {
-            throw new Error('No valid question found');
+        if (tossups.length === 0) {
+            throw new Error('No valid questions found in file');
         }
         
-        const setName = randomFile.name.replace('.json', '');
+        const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
+        
+        // Clean the question text
+        const cleanQuestion = randomQuestion.question
+            .replace(/<\/?[^>]+(>|$)/g, '') // Remove HTML tags
+            .replace(/\(\+\)/g, '')         // Remove power marker
+            .replace(/\(\*\)/g, '')         // Remove star marker
+            .replace(/\([^)]+\)/g, '')      // Remove other markers in parentheses
+            .replace(/\s+/g, ' ')           // Normalize whitespace
+            .trim();
         
         return {
-            question: randomQuestion.question.replace(/<[^>]+>/g, ''),
-            answer: randomQuestion.answer,
-            category: randomQuestion.metadata || 'Unknown',
-            setName: setName,
-            pdfLink: `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${setName}.pdf`
+            ...randomQuestion,
+            question: cleanQuestion,
+            originalQuestion: randomQuestion.question, // Keep original for scoring
+            setName: randomFile.name.replace('.json', ''),
+            isBeeset: randomFile.repo === 'beeSets'
         };
     } catch (error) {
         console.error('Error in getRandomQuestion:', error);
