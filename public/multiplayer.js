@@ -175,6 +175,7 @@ function handleWebSocketMessage(data) {
                         </div>
                         <div class="question-info">
                             <p>Set: <a href="${data.currentState.pdfLink}" target="_blank">${data.currentState.setName}</a></p>
+                            <p>Category: ${data.currentState.category}</p>
                         </div>
                         <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
                     `;
