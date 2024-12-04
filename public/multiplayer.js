@@ -1,4 +1,4 @@
-const WS_URL = `ws://${window.location.hostname}:${window.location.port}`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
 let username = '';
 
 let ws;
