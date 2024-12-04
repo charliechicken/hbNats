@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History Bowl - Multiplayer</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a237e' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            padding: 2rem;
+        }
+
+        .game-room {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 2rem;
+        }
+
+        .players-list {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            background: white;
+        }
+
+        .player-item.buzzed {
+            background: #ffd700;
+            animation: buzz-flash 0.5s;
+        }
+
+        .question-display {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            margin: 2rem 0;
+            min-height: 100px;
+            padding: 1rem;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .btn-buzz {
+            background: #dc3545;
+            color: white;
+            font-size: 1.2rem;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-buzz:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .btn-buzz:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .room-code {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #1a237e;
+            padding: 0.5rem 1rem;
+            background: #e3f2fd;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        @keyframes buzz-flash {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .title {
+            color: #1a237e;
+            font-size: 3.5rem;
+            margin-bottom: 2rem;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .subtitle {
+            color: #455a64;
+            font-size: 1.2rem;
+            margin-bottom: 3rem;
+        }
+
+        .game-modes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .mode-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .points-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(255, 215, 0, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+            transition: transform 0.3s ease-out;
+        }
+
+        .points-popup.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .points-content {
+            color: #000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="setup-screen" class="text-center">
+            <div class="form-group">
+                <input type="text" id="username" class="form-control mb-3" placeholder="Enter your username">
+                <button onclick="joinGame()" class="btn btn-primary">Join Game</button>
+            </div>
+        </div>
+
+        <div id="game-room" class="game-room" style="display: none;">
+            <div class="players-list">
+                <h4>Players</h4>
+                <div id="players-container"></div>
+            </div>
+
+            <div class="question-display" id="question-display">
+                Waiting for game to start...
+            </div>
+
+            <div class="text-center mb-4">
+                <button id="start-game" class="btn btn-success btn-lg">Start Game</button>
+            </div>
+
+            <div class="controls text-center">
+                <button id="buzz-button" class="btn-buzz">BUZZ (Space)</button>
+                <div id="answer-input" style="display: none;" class="mt-3">
+                    <input type="text" class="form-control" placeholder="Your answer...">
+                    <button class="btn btn-primary mt-2">Submit (Enter)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="multiplayer.js"></script>
+</body>
+</html>
