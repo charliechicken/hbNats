@@ -339,7 +339,7 @@ function handleTimeExpired(data) {
 }
 
 function buzz() {
-    if (gameState.isAnswering) return; // Prevent buzzing if someone is answering
+    if (gameState.isAnswering) return;
     
     const buzzButton = document.getElementById('buzz-button');
     if (buzzButton && !buzzButton.disabled) {
@@ -347,9 +347,14 @@ function buzz() {
         buzzButton.disabled = true;
         buzzButton.style.opacity = '0.5';
         
+        // Get the current revealed text at buzz time
+        const display = document.getElementById('question-display');
+        const currentText = display.textContent;
+        
         safeSend(JSON.stringify({
             type: 'buzz',
-            username
+            username,
+            revealedText: currentText
         }));
     }
 }
@@ -437,14 +442,15 @@ function handleGameState(data) {
 }
 
 function handleAnswerSubmitted(data) {
-    gameState.isAnswering = false; // Reset answering state after answer is submitted
-    
+    gameState.isAnswering = false;
     const display = document.getElementById('question-display');
     updatePlayersList(data.players);
     
     if (data.isCorrect) {
-        // Show points popup
-        showPointsPopup(data.points, data.username);
+        // Show points popup with the points from server
+        if (data.points) {
+            showPointsPopup(data.points, data.username);
+        }
         
         display.innerHTML = `
             <div class="full-question mb-3">
@@ -453,7 +459,9 @@ function handleAnswerSubmitted(data) {
             <div class="alert alert-success">
                 ${data.username}'s answer: ${data.answer}
                 <br>
-                Correct! The answer was: ${data.correctAnswer}
+                Correct! (${data.points} points)
+                <br>
+                The answer was: ${data.correctAnswer}
             </div>
             <div class="question-info">
                 <p>Set: <a href="${data.pdfLink}" target="_blank">${data.setName}</a></p>
@@ -471,25 +479,6 @@ function handleAnswerSubmitted(data) {
         if (gameState.currentInterval) {
             clearInterval(gameState.currentInterval);
             gameState.currentInterval = null;
-        }
-    } else {
-        // Keep existing incorrect answer handling
-        display.innerHTML += `
-            <div class="alert alert-danger">
-                ${data.username}'s answer: ${data.answer}
-                <br>
-                Incorrect - continue reading...
-            </div>
-        `;
-        
-        if (username === data.username) {
-            buzzed = true;
-        } else {
-            const buzzButton = document.getElementById('buzz-button');
-            if (buzzButton && !buzzed) {
-                buzzButton.disabled = false;
-                buzzButton.style.opacity = '1';
-            }
         }
     }
 }

@@ -243,34 +243,41 @@ function calculatePoints(question, revealedWords) {
         const questionText = revealedWords.join(' ');
         const fullQuestion = question.question;
         
-        // Debug logs
-        console.log('Calculating points:');
-        console.log('Current text length:', questionText.length);
-        console.log('Plus index:', fullQuestion.indexOf('(+)'));
-        console.log('Star index:', fullQuestion.indexOf('(*)'));
-        
         // If no special markers, return base points
         if (!fullQuestion.includes('(+)') && !fullQuestion.includes('(*)')) {
-            console.log('No markers found, returning 10 points');
             return 10;
         }
         
+        // Find the actual text positions of markers
         const plusIndex = fullQuestion.indexOf('(+)');
         const starIndex = fullQuestion.indexOf('(*)');
-        const currentPosition = questionText.length;
         
-        if (plusIndex === -1 || currentPosition < plusIndex) {
-            console.log('Before plus marker, returning 30 points');
+        // Calculate buzz position (length of revealed text)
+        const buzzPosition = revealedWords.join(' ').length;
+        
+        // Debug logs
+        console.log({
+            buzzPosition,
+            plusIndex,
+            starIndex,
+            revealedWords,
+            fullQuestion
+        });
+        
+        // Compare buzz position with marker positions
+        if (plusIndex !== -1 && buzzPosition < plusIndex) {
+            console.log('30 points - buzzed before plus');
             return 30;
-        } else if (starIndex === -1 || currentPosition < starIndex) {
-            console.log('Before star marker, returning 20 points');
+        } else if (starIndex !== -1 && buzzPosition < starIndex) {
+            console.log('20 points - buzzed before star');
             return 20;
         }
-        console.log('After all markers, returning 10 points');
+        
+        console.log('10 points - buzzed after star');
         return 10;
     } catch (error) {
         console.error('Error calculating points:', error);
-        return 10; // Default to 10 points on error
+        return 10;
     }
 }
 
@@ -284,9 +291,12 @@ function startWordRevealing(gameState) {
         const words = gameState.currentQuestion.question.split(' ');
         const isLastWord = gameState.wordIndex >= words.length - 1;
         
+        // Store the revealed word
+        gameState.revealedWords.push(words[gameState.wordIndex]);
+        
         broadcast({
             type: 'word-revealed',
-            words: words.slice(0, gameState.wordIndex + 1),
+            words: gameState.revealedWords,
             isLastWord: isLastWord
         });
         
@@ -412,6 +422,9 @@ wss.on('connection', (ws) => {
                         gameState.isAnswering = true;
                         clearInterval(gameState.currentInterval);
                         gameState.buzzOrder.push(username);
+                        
+                        // Store the revealed text from client
+                        gameState.buzzPosition = data.revealedText ? data.revealedText.length : 0;
                         
                         gameState.players = gameState.players.map(p => ({
                             ...p,
