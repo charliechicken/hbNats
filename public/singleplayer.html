@@ -1538,6 +1538,8 @@
                 const wordElements = document.querySelectorAll('#question .word');
                 wordElements[currentIndex].classList.remove('hidden');
                 currentIndex++;
+                // Remove next button if it's visible during reading
+                document.getElementById('next').classList.add('hidden');
             } else {
                 clearInterval(intervalId);
                 document.getElementById('next').classList.remove('hidden');
@@ -1610,7 +1612,10 @@
 
         // Add 'j' key listener for next question
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'j' && !document.getElementById('next').classList.contains('hidden')) {
+            const answerInput = document.getElementById('answer');
+            if (event.key === 'j' && 
+                !document.getElementById('next').classList.contains('hidden') && 
+                !answerInput.matches(':focus')) {
                 document.getElementById('next').click();
             }
         });
