@@ -177,7 +177,6 @@
         }
 
         body {
-            background-color: #f0f2f5;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a237e' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
@@ -1530,71 +1529,85 @@
         async function fetchQuestion() {
             try {
                 const setType = document.getElementById('setType').value;
-                const category = document.getElementById('categoryType').value;
-
-                // Make sure questions are loaded
-                if (!allQuestions || allQuestions.length === 0) {
-                    await preloadQuestions();
-                }
-
-                if (setType === 'third-quarter') {
-                    if (!window.thirdQuestions) {
-                        const response = await fetch('/thirdQuarter/third.txt');
-                        const data = await response.text();
-                        window.thirdQuestions = parseThirdQuestions(data);
-                    }
-                    const randomSet = getRandomThirdQuestionSet(window.thirdQuestions);
-                    if (!randomSet || !randomSet.questions || !randomSet.questions.length) {
-                        throw new Error('No valid third quarter questions found');
-                    }
-                    currentQuestions = randomSet.questions;
-                    document.getElementById('set-name').textContent = `Category: ${randomSet.category}`;
-                    return currentQuestions[0];
-                }
-
-                // Filter questions based on setType and category
-                const filteredQuestions = allQuestions.filter(q => {
-                    if (!q || !q.question) return false;
-                    if (setType === 'all') return true;
-                    if (category && q.metadata && !q.metadata.toLowerCase().includes(category.toLowerCase())) return false;
-                    
-                    const isNationals = q.setName.toLowerCase().includes('nationals');
-                    const isBee = q.isBeeset;
-                    
-                    switch(setType) {
-                        case 'bowl-nationals':
-                            return !isBee && isNationals;
-                        case 'bowl-regionals':
-                            return !isBee && !isNationals;
-                        case 'bee-nationals':
-                            return isBee && isNationals;
-                        case 'bee-regionals':
-                            return isBee && !isNationals;
-                        default:
-                            return true;
-                    }
-                });
-
-                if (!filteredQuestions || filteredQuestions.length === 0) {
-                    throw new Error(`No questions found for selected criteria`);
-                }
-
-                // Get random question
-                const randomIndex = Math.floor(Math.random() * filteredQuestions.length);
-                const randomQuestion = filteredQuestions[randomIndex];
                 
-                if (!randomQuestion || !randomQuestion.question) {
-                    throw new Error('Invalid question data');
+                // Determine which repositories to fetch from based on setType
+                let repositories = [];
+                if (setType === 'all' || setType.startsWith('bowl')) {
+                    repositories.push('sets');
+                }
+                if (setType === 'all' || setType.startsWith('bee')) {
+                    repositories.push('beeSets');
                 }
 
+                let allFiles = [];
+                for (const repo of repositories) {
+                    const repoUrl = `https://api.github.com/repos/charliechicken/hbNats/contents/${repo}`;
+                    const filesResponse = await fetch(repoUrl);
+                    const files = await filesResponse.json();
+                    
+                    // Filter JSON files based on setType
+                    const jsonFiles = files
+                        .filter(file => file.name.endsWith('.json'))
+                        .filter(file => {
+                            if (setType === 'all') return true;
+                            const isNationals = file.name.toLowerCase().includes('nationals');
+                            const isBee = repo === 'beeSets';
+                            
+                            switch(setType) {
+                                case 'bowl-nationals':
+                                    return !isBee && isNationals;
+                                case 'bowl-regionals':
+                                    return !isBee && !isNationals;
+                                case 'bee-nationals':
+                                    return isBee && isNationals;
+                                case 'bee-regionals':
+                                    return isBee && !isNationals;
+                                default:
+                                    return true;
+                            }
+                        });
+                    
+                    allFiles.push(...jsonFiles);
+                }
+
+                if (allFiles.length === 0) {
+                    throw new Error(`No sets found for set type: ${setType}`);
+                }
+                
+                // Get a random file
+                const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
+                const setName = randomFile.name.replace('.json', '');
+                
+                // Fetch the content of the selected file
+                const response = await fetch(randomFile.download_url);
+                const data = await response.json();
+                
+                // Get random question
+                let tossups = data.tossups.filter(tossup => tossup.question && tossup.answer);
+
+                // Filter by category if selected
+                const categorySelect = document.getElementById('categoryType');
+                const selectedCategory = categorySelect.value;
+
+                if (selectedCategory) {
+                    tossups = tossups.filter(tossup => {
+                        if (!tossup.metadata) return false;
+                        return tossup.metadata.toLowerCase().includes(selectedCategory.toLowerCase());
+                    });
+                    
+                    if (tossups.length === 0) {
+                        return fetchQuestion();
+                    }
+                }
+
+                const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
+                
                 currentQuestion = {
                     question: randomQuestion.question,
-                    answer: randomQuestion.answer || '',
-                    setName: randomQuestion.setName || 'Unknown Set',
-                    metadata: randomQuestion.metadata || '',
-                    pdfLink: randomQuestion.setName ? 
-                        `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${randomQuestion.setName}.pdf` :
-                        '#'
+                    answer: randomQuestion.answer,
+                    setName: setName,
+                    metadata: randomQuestion.metadata,
+                    pdfLink: `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${setName}.pdf`
                 };
                 
                 const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
@@ -1610,7 +1623,6 @@
                 
                 document.getElementById('set-name').innerHTML = `Set: ${currentQuestion.setName} <a href="${currentQuestion.pdfLink}" target="_blank">PDF</a>`;
                 startDisplayingWords();
-                
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('result').innerHTML = `
