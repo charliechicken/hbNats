@@ -1103,6 +1103,36 @@
         .view-missed-btn:hover {
             background-color: #0056b3;
         }
+
+        .leaderboard-entry.gold {
+            background-color: #FFD700;
+            color: black;
+        }
+        
+        .leaderboard-entry.silver {
+            background-color: #C0C0C0;
+            color: black;
+        }
+        
+        .leaderboard-entry.bronze {
+            background-color: #CD7F32;
+            color: white;
+        }
+
+        .gold-rank {
+            background-color: #FFD700 !important;
+            color: black !important;
+        }
+
+        .silver-rank {
+            background-color: #C0C0C0 !important;
+            color: black !important;
+        }
+
+        .bronze-rank {
+            background-color: #CD7F32 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -2097,47 +2127,46 @@
         }
 
         async function showLeaderboard() {
-            const leaderboardList = document.getElementById('leaderboardList');
-            leaderboardList.innerHTML = '<div class="text-center">Loading...</div>';
-            
-            try {
-                const usersRef = window.db.ref('users');
-                const snapshot = await usersRef.orderByChild('progress/correctAnswers')
-                    .limitToLast(100)
-                    .once('value');
-                
-                const users = [];
-                snapshot.forEach(childSnapshot => {
-                    const userData = childSnapshot.val();
-                    if (userData.username && userData.progress) {
-                        users.push({
-                            username: userData.username,
-                            correctAnswers: userData.progress.correctAnswers || 0
-                        });
-                    }
+    const leaderboardList = document.getElementById('leaderboardList');
+    leaderboardList.innerHTML = '<div class="text-center">Loading...</div>';
+    
+    try {
+        const usersRef = window.db.ref('users');
+        const snapshot = await usersRef.orderByChild('progress/correctAnswers')
+            .limitToLast(100)
+            .once('value');
+        
+        const users = [];
+        snapshot.forEach(childSnapshot => {
+            const userData = childSnapshot.val();
+            if (userData.username && userData.progress) {
+                users.push({
+                    username: userData.username,
+                    correctAnswers: userData.progress.correctAnswers || 0
                 });
-                
-                // Sort in descending order
-                users.sort((a, b) => b.correctAnswers - a.correctAnswers);
-                
-                // Update the modal content
-                leaderboardList.innerHTML = users.map((user, index) => `
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <span class="h5 mb-0">
-                            <strong>#${index + 1}</strong> ${user.username}
-                        </span>
-                        <span class="badge bg-info rounded-pill">
-                            ${user.correctAnswers} correct
-                        </span>
-                    </div>
-                `).join('');
-                
-            } catch (error) {
-                console.error('Error loading leaderboard:', error);
-                leaderboardList.innerHTML = '<div class="text-danger">Error loading leaderboard</div>';
             }
-            
-            $('#leaderboardModal').modal('show');
+        });
+        
+        // Sort in descending order
+        users.sort((a, b) => b.correctAnswers - a.correctAnswers);
+        
+        // Update the modal content
+        leaderboardList.innerHTML = users.map((user, index) => `
+            <div class="list-group-item d-flex justify-content-between align-items-center ${
+                index === 0 ? 'gold-rank' : 
+                index === 1 ? 'silver-rank' : 
+                index === 2 ? 'bronze-rank' : ''
+            }">
+                <span>${index + 1}. ${user.username}</span>
+                <span class="badge bg-primary rounded-pill">${user.correctAnswers}</span>
+            </div>
+        `).join('');
+        $('#leaderboardModal').modal('show');
+
+    } catch (error) {
+        console.error('Error:', error);
+        leaderboardList.innerHTML = '<div class="alert alert-danger">Error loading leaderboard</div>';
+            }
         }
 
         document.addEventListener('mouseup', function(e) {
