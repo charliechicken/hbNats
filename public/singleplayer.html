@@ -126,7 +126,7 @@
         const updatedProgress = {
             questionsAnswered: (currentData.progress.questionsAnswered || 0) + 1,
             correctAnswers: (currentData.progress.correctAnswers || 0) + (questionData.isCorrect ? 1 : 0),
-            history: [questionData, ...(currentData.progress.history || []).slice(0, 49)]
+            history: [questionData, ...(currentData.progress.history || []).slice(0, 100000)]
         };
 
         // Save to database
@@ -155,6 +155,21 @@
 
 .bg-primary {
     background-color: #007bff !important;
+}
+
+.buzz-icon {
+    display: inline-block;
+    background: #ffd700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    animation: buzz-flash 0.5s;
+    margin-left: 5px;
+}
+
+@keyframes buzz-flash {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
 }
 
 .me-2 {
@@ -1039,6 +1054,55 @@
         .search-result-card .card-text mark {
             background-color: #fff3cd;
         }
+
+        .username-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            padding: 12px;
+            border-radius: 8px;
+            z-index: 1;
+        }
+
+        .username-dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        .stats-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .stats-item:last-child {
+            border-bottom: none;
+        }
+
+        .view-missed-btn {
+            width: 100%;
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #usernameDisplay {
+            color: white;
+            padding-right: 10px;
+        }
+
+        .view-missed-btn:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -1051,7 +1115,18 @@
             <div class="d-flex justify-content-between align-items-center w-100">
                 <div class="d-flex align-items-center">
                     
-                    <span id="usernameDisplay" class="navbar-text me-3" style="margin-right: 1vw;" color="white !important;"></span>
+                    <div class="username-dropdown">
+                        <span id="usernameDisplay" style="color:white"></span>
+                        <div class="dropdown-content">
+                            <div class="stats-item">
+                                Accuracy: <span id="accuracyStats">-</span>
+                            </div>
+                            <div class="stats-item">
+                                Total Questions: <span id="totalQuestionsStats">-</span>
+                            </div>
+                            <button class="view-missed-btn" onclick="showMissedQuestions()">View Missed Questions</button>
+                        </div>
+                    </div>
                     <button id="authButton" class="btn btn-outline-light me-2" 
                             onclick="auth.currentUser ? handleSignOut() : $('#authModal').modal('show')">
                         Sign In
@@ -1104,6 +1179,7 @@
                     <option value="bowl-regionals">History Bowl Regionals (8,085 questions)</option>
                     <option value="bee-nationals">History Bee Nationals (2,777 questions)</option>
                     <option value="bee-regionals">History Bee Regionals (4,001 questions)</option>
+                    <option value="third-quarter">Third Quarter (1,912 questions)</option>
                 </select>
             </div>
 
@@ -1175,7 +1251,7 @@
             singleWordBlacklist: new Set(['empire', 'battle', 'war']),
 
             // Two-word phrases that should be blacklisted unless part of longer phrases
-            twoWordBlacklist: new Set(['battle of', 'agents of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of', 'rather than', 'war between', 'fired on', 'surprise attack', 'us president', 'war’s battle', 'two countries']),
+            twoWordBlacklist: new Set(['battle of', 'member of', 'agents of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of', 'rather than', 'war between', 'fired on', 'surprise attack', 'us president', 'war’s battle', 'two countries']),
 
             // Add this after the twoWordBlacklist declaration (around line 1176)
             threeWordBlacklist: new Set([
@@ -1424,85 +1500,71 @@
         async function fetchQuestion() {
             try {
                 const setType = document.getElementById('setType').value;
-                
-                // Determine which repositories to fetch from based on setType
-                let repositories = [];
-                if (setType === 'all' || setType.startsWith('bowl')) {
-                    repositories.push('sets');
-                }
-                if (setType === 'all' || setType.startsWith('bee')) {
-                    repositories.push('beeSets');
+                const category = document.getElementById('categoryType').value;
+
+                // Make sure questions are loaded
+                if (!allQuestions || allQuestions.length === 0) {
+                    await preloadQuestions();
                 }
 
-                let allFiles = [];
-                for (const repo of repositories) {
-                    const repoUrl = `https://api.github.com/repos/charliechicken/hbNats/contents/${repo}`;
-                    const filesResponse = await fetch(repoUrl);
-                    const files = await filesResponse.json();
-                    
-                    // Filter JSON files based on setType
-                    const jsonFiles = files
-                        .filter(file => file.name.endsWith('.json'))
-                        .filter(file => {
-                            if (setType === 'all') return true;
-                            const isNationals = file.name.toLowerCase().includes('nationals');
-                            const isBee = repo === 'beeSets';
-                            
-                            switch(setType) {
-                                case 'bowl-nationals':
-                                    return !isBee && isNationals;
-                                case 'bowl-regionals':
-                                    return !isBee && !isNationals;
-                                case 'bee-nationals':
-                                    return isBee && isNationals;
-                                case 'bee-regionals':
-                                    return isBee && !isNationals;
-                                default:
-                                    return true;
-                            }
-                        });
-                    
-                    allFiles.push(...jsonFiles);
-                }
-
-                if (allFiles.length === 0) {
-                    throw new Error(`No sets found for set type: ${setType}`);
-                }
-                
-                // Get a random file
-                const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
-                const setName = randomFile.name.replace('.json', '');
-                
-                // Fetch the content of the selected file
-                const response = await fetch(randomFile.download_url);
-                const data = await response.json();
-                
-                // Get random question
-                let tossups = data.tossups.filter(tossup => tossup.question && tossup.answer);
-
-                // Filter by category if selected
-                const categorySelect = document.getElementById('categoryType');
-                const selectedCategory = categorySelect.value;
-
-                if (selectedCategory) {
-                    tossups = tossups.filter(tossup => {
-                        if (!tossup.metadata) return false;
-                        return tossup.metadata.toLowerCase().includes(selectedCategory.toLowerCase());
-                    });
-                    
-                    if (tossups.length === 0) {
-                        return fetchQuestion();
+                if (setType === 'third-quarter') {
+                    if (!window.thirdQuestions) {
+                        const response = await fetch('/thirdQuarter/third.txt');
+                        const data = await response.text();
+                        window.thirdQuestions = parseThirdQuestions(data);
                     }
+                    const randomSet = getRandomThirdQuestionSet(window.thirdQuestions);
+                    if (!randomSet || !randomSet.questions || !randomSet.questions.length) {
+                        throw new Error('No valid third quarter questions found');
+                    }
+                    currentQuestions = randomSet.questions;
+                    document.getElementById('set-name').textContent = `Category: ${randomSet.category}`;
+                    return currentQuestions[0];
                 }
 
-                const randomQuestion = tossups[Math.floor(Math.random() * tossups.length)];
+                // Filter questions based on setType and category
+                const filteredQuestions = allQuestions.filter(q => {
+                    if (!q || !q.question) return false;
+                    if (setType === 'all') return true;
+                    if (category && q.metadata && !q.metadata.toLowerCase().includes(category.toLowerCase())) return false;
+                    
+                    const isNationals = q.setName.toLowerCase().includes('nationals');
+                    const isBee = q.isBeeset;
+                    
+                    switch(setType) {
+                        case 'bowl-nationals':
+                            return !isBee && isNationals;
+                        case 'bowl-regionals':
+                            return !isBee && !isNationals;
+                        case 'bee-nationals':
+                            return isBee && isNationals;
+                        case 'bee-regionals':
+                            return isBee && !isNationals;
+                        default:
+                            return true;
+                    }
+                });
+
+                if (!filteredQuestions || filteredQuestions.length === 0) {
+                    throw new Error(`No questions found for selected criteria`);
+                }
+
+                // Get random question
+                const randomIndex = Math.floor(Math.random() * filteredQuestions.length);
+                const randomQuestion = filteredQuestions[randomIndex];
                 
+                if (!randomQuestion || !randomQuestion.question) {
+                    throw new Error('Invalid question data');
+                }
+
                 currentQuestion = {
                     question: randomQuestion.question,
-                    answer: randomQuestion.answer,
-                    setName: setName,
-                    metadata: randomQuestion.metadata,
-                    pdfLink: `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${setName}.pdf`
+                    answer: randomQuestion.answer || '',
+                    setName: randomQuestion.setName || 'Unknown Set',
+                    metadata: randomQuestion.metadata || '',
+                    pdfLink: randomQuestion.setName ? 
+                        `https://www.iacompetitions.com/wp-content/uploads/sites/5/2023/08/${randomQuestion.setName}.pdf` :
+                        '#'
                 };
                 
                 const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
@@ -1518,6 +1580,7 @@
                 
                 document.getElementById('set-name').innerHTML = `Set: ${currentQuestion.setName} <a href="${currentQuestion.pdfLink}" target="_blank">PDF</a>`;
                 startDisplayingWords();
+                
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('result').innerHTML = `
@@ -1558,6 +1621,9 @@
 
         // Update the submit event listener
         document.getElementById('submit').addEventListener('click', async () => {
+            if (isSubmitting) return;
+            isSubmitting = true;
+            
             const userAnswer = document.getElementById('answer').value.toLowerCase().trim();
             const correctAnswer = currentQuestion.answer;
 
@@ -1565,49 +1631,51 @@
             const wordElements = document.querySelectorAll('#question .word');
             wordElements.forEach(element => element.classList.remove('hidden'));
 
-            // Extract all bolded/underlined parts from the answer
-            const boldedParts = correctAnswer.match(/<b>.*?<\/b>|<b><u>.*?<\/u><\/b>/g) || [];
-            const acceptableAnswers = boldedParts.map(part => 
-                part.replace(/<\/?[bu]>/g, '').toLowerCase().trim()
-            );
+            const result = checkAnswer(userAnswer, correctAnswer);
 
-            const isCorrect = acceptableAnswers.some(answer => 
-                userAnswer === answer || 
-                userAnswer.includes(answer) || 
-                answer.includes(userAnswer)
-            );
+            if (result.needsPrompt && !hasBeenPrompted) {
+                hasBeenPrompted = true;
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-warning">
+                        Please be more specific.
+                    </div>`;
+                document.getElementById('answer').value = '';
+                document.getElementById('answer').focus();
+                isSubmitting = false;
+                return;
+            }
 
-            if (isCorrect) {
-                
+            // Reset prompt flag for next question
+            hasBeenPrompted = false;
+
+            // Add to question history using the existing function
+            addToQuestionHistory(currentQuestion, userAnswer, result.isCorrect);
+
+            if (result.isCorrect) {
                 if (audioEnabled) {
                     document.getElementById('correctSound').play();
                 }
-                
                 document.getElementById('result').innerHTML = `
                     <div class="alert alert-success">
                         Correct! The answer was: ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}
                     </div>`;
             } else {
-
                 if (audioEnabled) {
                     document.getElementById('incorrectSound').play();
                 }
-
                 document.getElementById('result').innerHTML = `
                     <div class="alert alert-danger">
                         Incorrect. The answer was: ${correctAnswer.replace(/<b>(.*?)<\/b>/g, '<span class="emphasized">$1</span>')}
                     </div>`;
             }
-            document.getElementById('answer').style.display = 'none';
             
-
-            document.getElementById('questionHistory').value += 
-            `Question: ${currentQuestion.question.replace(/<[^>]+>/g, '')}\n` +
-            `Your Answer: ${userAnswer}\n` +
-            `Correct Answer: ${correctAnswer.replace(/<[^>]+>/g, '')}\n` +
-            `Set: ${currentQuestion.setName}\n\n`;
+            document.getElementById('answer').style.display = 'none';
             document.getElementById('next').classList.remove('hidden');
             disableSubmit();
+            
+            setTimeout(() => {
+                isSubmitting = false;
+            }, 500);
         });
 
         // Add 'j' key listener for next question
@@ -1707,34 +1775,48 @@
             const searchResults = document.getElementById('searchResults');
             $('#resultsModal').modal('show');
             
-            // Split by commas and create RegExp patterns for each group
-            const searchTermGroups = searchInput.split(',').map(group => {
-                const phrase = group.trim();
-                // Escape special regex characters and create word boundary pattern
-                const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                return new RegExp(`\\b${escapedPhrase}\\b`, 'i');
-            });
-            
-            matches = allQuestions.filter(q => {
-                const questionText = (q.question || '').replace(/<[^>]+>/g, '');
-                const answerText = (q.answer || '').replace(/<[^>]+>/g, '');
+            try {
+                // Fetch questions if they haven't been loaded yet
+                if (!allQuestions || allQuestions.length === 0) {
+                    await preloadQuestions();
+                }
                 
-                // Check if ANY of the comma-separated patterns match
-                return searchTermGroups.some(pattern => {
-                    switch (searchType) {
-                        case 'question':
-                            return pattern.test(questionText);
-                        case 'answer':
-                            return pattern.test(answerText);
-                        default: // 'both'
-                            return pattern.test(questionText) || pattern.test(answerText);
-                    }
+                // Split by commas and create RegExp patterns for each group
+                const searchTermGroups = searchInput.split(',').map(group => {
+                    const phrase = group.trim();
+                    const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    return new RegExp(`\\b${escapedPhrase}\\b`, 'i');
                 });
-            });
+                
+                matches = allQuestions.filter(q => {
+                    if (!q || (!q.question && !q.answer)) return false;
+                    
+                    const questionText = (q.question || '').replace(/<[^>]+>/g, '');
+                    const answerText = (q.answer || '').replace(/<[^>]+>/g, '');
+                    
+                    return searchTermGroups.some(pattern => {
+                        switch (searchType) {
+                            case 'question':
+                                return pattern.test(questionText);
+                            case 'answer':
+                                return pattern.test(answerText);
+                            default: // 'both'
+                                return pattern.test(questionText) || pattern.test(answerText);
+                        }
+                    });
+                });
 
-            selectedQuestions = [...matches];
-            updateSelectedCount();
-            displaySearchResults(matches);
+                selectedQuestions = [...matches];
+                updateSelectedCount();
+                displaySearchResults(matches);
+            } catch (error) {
+                console.error('Search error:', error);
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error searching questions. Please try again.
+                    </div>
+                `;
+            }
         }
 
         // Add debounce function at the top
@@ -1979,7 +2061,7 @@
                     saveUserProgress(questionData);
                 }
                 showResult(false, correctAnswer);
-                return false;
+                return { isCorrect: false, needsPrompt: false };
             }
             
             // Normalize both answers
@@ -2011,7 +2093,7 @@
             }
             
             showResult(isCorrect, correctAnswer);
-            return isCorrect;
+            return { isCorrect, needsPrompt: false };
         }
 
         async function showLeaderboard() {
@@ -2255,20 +2337,24 @@
         }
 
         function handlePracticeBuzz() {
-            if (practiceState.isBuzzed) return;
-            
-            practiceState.isBuzzed = true;
-            clearInterval(practiceState.interval);
-            
-            const answerInput = document.getElementById('practiceAnswerInput');
-            const submitBtn = document.getElementById('practiceSubmitBtn');
-            const buzzBtn = document.getElementById('practiceBuzzBtn');
-            
-            if (answerInput) answerInput.disabled = false;
-            if (submitBtn) submitBtn.disabled = false;
-            if (buzzBtn) buzzBtn.disabled = true;
-            
-            if (answerInput) answerInput.focus();
+    if (practiceState.isBuzzed) return;
+    
+    practiceState.isBuzzed = true;
+    clearInterval(practiceState.interval);
+    
+    const answerInput = document.getElementById('practiceAnswerInput');
+    const submitBtn = document.getElementById('practiceSubmitBtn');
+    
+    // Add buzz indicator
+    const questionDisplay = document.getElementById('practiceQuestionDisplay');
+    const buzzSpan = document.createElement('span');
+    buzzSpan.className = 'buzz-icon';
+    buzzSpan.textContent = '🔔';
+    questionDisplay.appendChild(buzzSpan);
+    
+    answerInput.disabled = false;
+    submitBtn.disabled = false;
+            answerInput.focus();
         }
 
         // Prevent space from triggering button clicks when typing
@@ -2616,6 +2702,265 @@
             
             return nextQuestionIndex;
         }
+
+
+
+        async function loadTrainingQuestion() {
+            try {
+                const response = await fetch('/api/random-question');
+                const question = await response.json();
+                
+                document.getElementById('trainingQuestion').textContent = question.question.replace(/<[^>]+>/g, '');
+                document.getElementById('correctAnswer').textContent = question.answer.replace(/<[^>]+>/g, '');
+                document.getElementById('trainingAnswer').value = '';
+                
+                currentTrainingQuestion = question;
+            } catch (error) {
+                console.error('Error loading training question:', error);
+            }
+        }
+
+        async function markAnswer(isCorrect) {
+            const userAnswer = document.getElementById('trainingAnswer').value;
+            if (!userAnswer.trim()) {
+                alert('Please enter an answer before marking');
+                return;
+            }
+            
+            const correctAnswer = currentTrainingQuestion.answer;
+            
+            try {
+                await fetch('/api/train-answer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userAnswer,
+                        correctAnswer,
+                        isCorrect
+                    })
+                });
+                
+                // Show feedback
+                const feedback = document.createElement('div');
+                feedback.className = `alert alert-${isCorrect ? 'success' : 'danger'} mt-2`;
+                feedback.textContent = `Answer marked as ${isCorrect ? 'correct' : 'incorrect'}`;
+                document.querySelector('.modal-body').appendChild(feedback);
+                
+                // Remove feedback after 2 seconds
+                setTimeout(() => feedback.remove(), 2000);
+                
+                // Load next question
+                loadTrainingQuestion();
+            } catch (error) {
+                console.error('Error saving training data:', error);
+            }
+        }
+
+        // Add after answer submission handling
+        function showTrainingOption() {
+            document.getElementById('training-container').style.display = 'block';
+            document.getElementById('trainAnswers').addEventListener('click', () => {
+                const modal = $('#trainAnswersModal');
+                document.getElementById('train-question-text').textContent = 
+                    currentQuestion.question.replace(/<[^>]+>/g, '');
+                document.getElementById('train-correct-answer').textContent = 
+                    currentQuestion.answer.replace(/<[^>]+>/g, '');
+                modal.modal('show');
+            });
+        }
+
+        async function submitAlternativeAnswer() {
+            const altAnswer = document.getElementById('alternativeAnswer').value.trim();
+            if (!altAnswer) return;
+
+            try {
+                await fetch('/api/train-answer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userAnswer: altAnswer,
+                        correctAnswer: currentQuestion.answer,
+                        isCorrect: true
+                    })
+                });
+
+                // Add to trained answers list
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                li.textContent = altAnswer;
+                document.getElementById('trained-answers-list').appendChild(li);
+
+                // Clear input
+                document.getElementById('alternativeAnswer').value = '';
+
+            } catch (error) {
+                console.error('Error saving alternative answer:', error);
+            }
+        }
+
+        let hasBeenPrompted = false;
+
+        // Add hover stats functionality
+        async function showMissedQuestions() {
+            const user = window.auth.currentUser;
+            if (!user) return;
+            
+            try {
+                const userRef = window.db.ref('users/' + user.uid);
+                const snapshot = await userRef.once('value');
+                const userData = snapshot.val();
+                
+                if (userData?.progress?.history) {
+                    const missedQuestions = userData.progress.history
+                        .filter(entry => !entry.isCorrect)
+                        .map(entry => `
+                            <div class="history-card incorrect mb-3">
+                                <div class="question-text">${entry.question}</div>
+                                <div class="answer-section">
+                                    <div class="metadata">
+                                        <span class="set-name">Set: ${entry.setName || 'Unknown'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="user-answer">Your answer: ${entry.userAnswer}</span>
+                                    </div>
+                                    <div>
+                                        <span class="correct-answer">Correct answer: ${entry.answer.replace(/<\/?[^>]+(>|$)/g, '')}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    
+                    document.getElementById('missedQuestionsList').innerHTML = missedQuestions || 'No missed questions found.';
+                } else {
+                    document.getElementById('missedQuestionsList').innerHTML = 'No question history available.';
+                }
+                
+                $('#missedQuestionsModal').modal('show');
+            } catch (error) {
+                console.error("Error loading missed questions:", error);
+            }
+        }
+
+        // Update the existing onAuthStateChanged listener to include accuracy stats
+        window.auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                const userRef = window.db.ref('users/' + user.uid);
+                userRef.on('value', (snapshot) => {
+                    const userData = snapshot.val() || { 
+                        progress: { correctAnswers: 0, questionsAnswered: 0 },
+                        username: 'User'
+                    };
+                    
+                    // Calculate accuracy
+                    const accuracy = userData.progress?.questionsAnswered ? 
+                        ((userData.progress.correctAnswers / userData.progress.questionsAnswered) * 100).toFixed(1) : 
+                        0;
+                    
+                    // Update username with dropdown
+                    if (usernameDisplay) {
+                        usernameDisplay.innerHTML = `
+                            <div class="username-dropdown">
+                                ${userData.username || 'User'}
+                                <div class="dropdown-content">
+                                    <div class="stats-item">
+                                        Accuracy: ${accuracy}%
+                                    </div>
+                                    <div class="stats-item">
+                                        Total Questions: ${userData.progress?.questionsAnswered || 0}
+                                    </div>
+                                    <button class="view-missed-btn" onclick="showMissedQuestions()">
+                                        View Missed Questions
+                                    </button>
+                                </div>
+                            </div>`;
+                    }
+                });
+            }
+        });
+
+        // Function to parse third.txt format questions
+        function parseThirdQuestions(data) {
+            const lines = data.split('\n');
+            const questionSets = [];
+            let currentSet = [];
+            let currentCategory = '';
+            
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                
+                const [num, questionText] = line.split('|');
+                const [question, answer] = questionText.split('\t');
+                
+                // If it's the first question of a set (ends with 1))
+                if (num.endsWith('1)')) {
+                    if (currentSet.length > 0) {
+                        questionSets.push({
+                            category: currentCategory,
+                            questions: currentSet
+                        });
+                    }
+                    currentSet = [];
+                    // Extract category from the question text
+                    currentCategory = question.split('Concerning ')[1]?.split(',')[0] || 
+                                    question.split('Name the...')[0] || 
+                                    question.split('What...')[0] || 
+                                    'Miscellaneous';
+                }
+                
+                currentSet.push({
+                    question: question.trim(),
+                    answer: answer.trim()
+                });
+            });
+            
+            // Add the last set
+            if (currentSet.length > 0) {
+                questionSets.push({
+                    category: currentCategory,
+                    questions: currentSet
+                });
+            }
+            
+            return questionSets;
+        }
+
+        // Function to get a random question set
+        /*
+        function getRandomThirdQuestionSet(questionSets) {
+            const randomIndex = Math.floor(Math.random() * questionSets.length);
+            return questionSets[randomIndex];
+        }
+
+        // Add this to your existing initialization code
+        fetch('thirdQuarter/third.txt')
+            .then(response => response.text())
+            .then(data => {
+                window.thirdQuestions = parseThirdQuestions(data);
+                
+                // Add option to dropdown
+                const dropdown = document.getElementById('questionSetSelect');
+                const option = document.createElement('option');
+                option.value = 'third';
+                option.textContent = 'Third Quarter Questions';
+                dropdown.appendChild(option);
+            });
+*/
+        // Modify your existing question set selection handler
+        function handleQuestionSetChange(event) {
+            const selectedValue = event.target.value;
+            if (selectedValue === 'third') {
+                const randomSet = getRandomThirdQuestionSet(window.thirdQuestions);
+                currentQuestions = randomSet.questions;
+                document.getElementById('categoryTitle').textContent = `Category: ${randomSet.category}`;
+                resetGame();
+            } else {
+                // Your existing question set handling code
+            }
+        }
     </script>
 
     <!-- Search Modal -->
@@ -2733,6 +3078,55 @@
                     <div id="practiceControls" class="mt-3">
                         <button class="btn btn-primary" onclick="nextPracticeQuestion()">Next Question</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <!-- Training Answers Modal -->
+    <div class="modal fade" id="trainAnswersModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Train Alternative Answers</h5>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Question:</strong>
+                        <p id="train-question-text"></p>
+                        <strong>Correct Answer:</strong>
+                        <p id="train-correct-answer"></p>
+                    </div>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="alternativeAnswer" 
+                               placeholder="Enter another valid answer">
+                        <div class="input-group-append">
+                            <button class="btn btn-success" onclick="submitAlternativeAnswer()">Add as Valid</button>
+                        </div>
+                    </div>
+                    <div id="trained-answers" class="mt-3">
+                        <strong>Trained Answers:</strong>
+                        <ul class="list-group" id="trained-answers-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal for missed questions -->
+    <div class="modal fade" id="missedQuestionsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Missed Questions</h5>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="missedQuestionsList"></div>
                 </div>
             </div>
         </div>

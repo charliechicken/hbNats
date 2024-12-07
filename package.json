@@ -20,9 +20,11 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "fs": "^0.0.1-security",
+    "natural": "^8.0.1",
     "nodemon": "^3.1.7",
     "openai": "^4.73.1",
     "path": "^0.12.7",
+    "string-similarity": "^4.0.4",
     "ws": "^8.18.0"
   }
 }

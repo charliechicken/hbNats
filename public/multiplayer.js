@@ -188,6 +188,11 @@ function handleWebSocketMessage(data) {
             break;
         case 'player-joined':
         case 'player-left':
+            // Update player count on index page if element exists
+            const playerCountElement = document.getElementById('multiplayer-count');
+            if (playerCountElement) {
+                playerCountElement.textContent = data.playerCount;
+            }
             updatePlayersList(data.players);
             break;
         case 'game-started':

@@ -88,6 +88,17 @@
             font-size: 0.9rem;
         }
 
+        .player-count {
+            font-size: 0.9rem;
+            color: #666;
+            margin: 0.5rem 0;
+        }
+
+        #multiplayer-count {
+            font-weight: bold;
+            color: #28a745;
+        }
+
         @media (max-width: 768px) {
             .game-modes {
                 grid-template-columns: 1fr;
@@ -121,6 +132,8 @@
                     Compete with friends in real-time matches. 
                     Race to buzz in and prove your history expertise!
                 </p>
+                <div class="player-count"></div>
+                    <span id="multiplayer-count">0 players online</span> 
             </a>
         </div>
 

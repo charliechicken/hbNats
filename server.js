@@ -8,6 +8,7 @@ const port = process.env.PORT || 3000;
 const { WebSocketServer } = require('ws');
 const http = require('http');
 const https = require('https');
+const stringSimilarity = require('string-similarity');
 
 // Enable CORS
 app.use(cors());
@@ -77,10 +78,18 @@ const gameState = {
     speed: 800, // Default speed
 };
 
-function broadcast(message) {
-    gameState.connections.forEach(client => {
-        if (client.readyState === client.OPEN) {
-            client.send(JSON.stringify(message));
+function broadcast(data, excludeWs = null) {
+    const playerCount = gameState.players.length;
+    wss.clients.forEach(client => {
+        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
+            if (data.type === 'player-joined' || data.type === 'player-left') {
+                client.send(JSON.stringify({
+                    ...data,
+                    playerCount
+                }));
+            } else {
+                client.send(JSON.stringify(data));
+            }
         }
     });
 }
@@ -311,50 +320,98 @@ function startWordRevealing(gameState) {
 function normalizeAnswer(answer) {
     if (!answer) return [];
     
-    // Convert to lowercase and remove extra spaces
-    answer = answer.toLowerCase().trim();
+    answer = answer.toLowerCase().trim()
+        .replace(/page\s+\d+/g, '').trim()
+        .replace(/\{[IVX]+\}/g, '').trim();
     
-    // Extract bold/underlined text (text between various tags)
+    let answers = [];
+    let prompts = [];
+    
+    // Extract prompt instructions
+    const promptMatch = answer.match(/prompt on (.*?)(?:\)|;|$)/i);
+    if (promptMatch) {
+        prompts = promptMatch[1].split(/\s*(?:or|,)\s*/)
+            .map(p => p.toLowerCase().trim())
+            .filter(p => p.length >= 2);
+    }
+    
     const tagMatches = answer.match(/<[bu]>(.*?)<\/[bu]>|_(.*?)_/g);
     
     if (tagMatches) {
-        // Get the emphasized text
         const emphasizedAnswers = tagMatches.map(match => 
             match.replace(/<[^>]+>|_/g, '').trim()
         );
         
-        // Remove all HTML tags for the full answer
-        const fullAnswer = answer.replace(/<[^>]+>/g, '').trim()
-            .replace(/[^a-z0-9\s]/g, '')
-            .replace(/\s+/g, ' ');
-            
-        // Return both the emphasized parts and the full answer
-        return [...new Set([...emphasizedAnswers, fullAnswer])];
+        let fullAnswer = answer.replace(/<[^>]+>/g, '').trim();
+        
+        // Split on "or", "and", and handle parentheses
+        const parts = fullAnswer.split(/\s*(?:\(|\)|or|and)\s*/i)
+            .map(part => part.trim())
+            .filter(Boolean);
+        
+        // Process each part and its combinations
+        parts.forEach(part => {
+            const cleaned = part.replace(/[^a-z0-9\s-]/g, '').trim();
+            if (cleaned.length >= 3) {
+                answers.push(cleaned);
+            }
+        });
+        
+        // Add emphasized parts
+        emphasizedAnswers.forEach(ans => {
+            const cleaned = ans.replace(/[^a-z0-9\s-]/g, '').trim();
+            if (cleaned.length >= 3) {
+                answers.push(cleaned);
+            }
+        });
     }
     
-    // If no tags, just clean and return the full answer
-    return [answer.replace(/<[^>]+>/g, '') // Remove all HTML tags
-             .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-             .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-             .trim()];
+    return {
+        answers: [...new Set(answers)]
+            .filter(ans => ans && ans.length >= 3)
+            .map(ans => ans.replace(/\s+/g, ' ').trim()),
+        prompts: [...new Set(prompts)]
+    };
 }
 
 function checkAnswer(userAnswer, correctAnswer) {
-    // If no answer given, count as incorrect
-    if (!userAnswer.trim()) return false;
+    // Remove "page X" from user answer
+    const normalizedUser = userAnswer.toLowerCase().trim()
+        .replace(/page\s+\d+/g, '').trim();
+        
+    const { answers, prompts } = normalizeAnswer(correctAnswer);
     
-    // Normalize both answers
-    const normalizedUserAnswer = normalizeAnswer(userAnswer)[0]; // Take first normalized answer
-    const acceptedAnswers = normalizeAnswer(correctAnswer);
-    
-    // Check if user's answer matches any of the accepted answers
-    return acceptedAnswers.some(accepted => {
-        const cleanAccepted = accepted.toLowerCase().trim();
-        // Only return true if the answers are very similar (prevent single letter matches)
-        return normalizedUserAnswer === cleanAccepted || 
-               (normalizedUserAnswer.length > 3 && cleanAccepted.length > 3 && 
-                (normalizedUserAnswer.includes(cleanAccepted) || cleanAccepted.includes(normalizedUserAnswer)));
+    console.log('Answer Check:', {
+        userAnswer: normalizedUser,
+        answers,
+        prompts
     });
+
+    // Check if answer needs prompting
+    if (prompts.some(p => p === normalizedUser)) {
+        return { needsPrompt: true };
+    }
+
+    // Check for correct answer with exact similarity matching
+    const isCorrect = answers.some(answer => {
+        // Calculate similarity between full strings
+        const similarity = stringSimilarity.compareTwoStrings(normalizedUser, answer);
+        
+        // Count words in both answers
+        const userWordCount = normalizedUser.split(/\s+/).length;
+        const answerWordCount = answer.split(/\s+/).length;
+        
+        // If correct answer has multiple words, user must provide more than one word
+        if (answerWordCount > 1 && userWordCount === 1) {
+            return false;
+        }
+        
+        // Only accept if similarity is at least 80% and lengths are similar
+        return similarity >= 0.8 && 
+               Math.abs(normalizedUser.length - answer.length) <= Math.max(answer.length * 0.2, 2);
+    });
+
+    return { isCorrect };
 }
 
 wss.on('connection', (ws) => {
