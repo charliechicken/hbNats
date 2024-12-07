@@ -5,36 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>History Bowl - Home</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
     <style>
         body {
-            background-color: #f0f2f5;
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a237e' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            background: linear-gradient(45deg, #1a472a, #2d5a4c);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        .bubble {
+            position: absolute;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.25));
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 8s infinite;
+            backdrop-filter: blur(3px);
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) translateX(0); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-100vh) translateX(50px); opacity: 0; }
         }
 
         .container {
             max-width: 800px;
             text-align: center;
             padding: 2rem;
+            position: relative;
+            z-index: 1;
         }
 
         .title {
-            color: #1a237e;
-            font-size: 3.5rem;
+            color: #ffffff;
+            font-family: 'Russo One', sans-serif;
+            font-size: 5rem;
             margin-bottom: 2rem;
-            font-weight: 700;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            font-weight: 800;
+            text-shadow: 
+                3px 3px 0px #c41e3a,
+                6px 6px 0px rgba(0, 0, 0, 0.2);
+            letter-spacing: 2px;
+            transform: scale(1);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            -webkit-background-clip: text;
+            background-clip: text;
+            background-image: linear-gradient(45deg, #ffffff, #e3f2fd);
+            position: relative;
+        }
+
+        .title:hover {
+            transform: scale(1.05);
+            text-shadow: 
+                4px 4px 0px #1565c0,
+                8px 8px 0px rgba(0, 0, 0, 0.2);
         }
 
         .subtitle {
-            color: #455a64;
-            font-size: 1.2rem;
+            color: #ffffff;
+            font-size: 1.5rem;
             margin-bottom: 3rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0.9;
+            font-weight: 500;
         }
 
         .game-modes {
@@ -42,50 +82,79 @@
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
             margin-top: 2rem;
+            perspective: 1000px;
         }
 
         .mode-card {
-            background: white;
-            border-radius: 16px;
-            padding: 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 2.5rem;
             text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
             cursor: pointer;
             text-decoration: none;
             color: inherit;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #000000;
+        }
+
+        .mode-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transform: translateX(-100%);
+            transition: 0.5s;
         }
 
         .mode-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-            text-decoration: none;
-            color: inherit;
+            transform: translateY(-15px) rotateX(5deg);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .mode-card:hover::before {
+            transform: translateX(100%);
         }
 
         .mode-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #1976d2;
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            color: #c41e3a;
+            animation: bounce 3s infinite;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
 
         .mode-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #1a237e;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #1a472a;
+            letter-spacing: -0.5px;
         }
 
         .mode-description {
-            color: #666;
-            font-size: 0.9rem;
-            line-height: 1.4;
+            color: #444;
+            font-size: 1rem;
+            line-height: 1.6;
+            font-weight: 500;
         }
 
         .footer {
             margin-top: 4rem;
-            color: #666;
+            color: rgba(255, 255, 255, 0.8);
             font-size: 0.9rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         }
 
         .player-count {
@@ -96,7 +165,20 @@
 
         #multiplayer-count {
             font-weight: bold;
-            color: #28a745;
+            color: #fff;
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            padding: 0.5rem 1.2rem;
+            border-radius: 30px;
+            display: inline-block;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         @media (max-width: 768px) {
@@ -105,7 +187,31 @@
             }
 
             .title {
-                font-size: 2.5rem;
+                font-size: 3rem;
+            }
+        }
+
+        /* Christmas Theme */
+        .snow {
+            position: fixed;
+            top: -10px;
+            left: 0;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            filter: blur(1px);
+            animation: snowfall linear infinite;
+        }
+
+        @keyframes snowfall {
+            0% {
+                transform: translateY(-10px) translateX(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) translateX(100px) rotate(360deg);
+                opacity: 0;
             }
         }
     </style>
@@ -145,5 +251,58 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Create floating bubbles
+        function createBubbles() {
+            const bubbleCount = 15;
+            for (let i = 0; i < bubbleCount; i++) {
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                bubble.style.width = Math.random() * 50 + 20 + 'px';
+                bubble.style.height = bubble.style.width;
+                bubble.style.left = Math.random() * 100 + 'vw';
+                bubble.style.animationDelay = Math.random() * 5 + 's';
+                document.body.appendChild(bubble);
+            }
+        }
+
+        // Add parallax effect to cards
+        document.querySelectorAll('.mode-card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const rotateX = (y - centerY) / 20;
+                const rotateY = (centerX - x) / 20;
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(10px)`;
+            });
+
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateZ(0)';
+            });
+        });
+
+        // Create snowflakes
+        function createSnow() {
+            const snowCount = 50;
+            for (let i = 0; i < snowCount; i++) {
+                const snow = document.createElement('div');
+                snow.className = 'snow';
+                snow.style.left = Math.random() * 100 + 'vw';
+                snow.style.animationDuration = Math.random() * 3 + 2 + 's';
+                snow.style.opacity = Math.random();
+                snow.style.width = snow.style.height = Math.random() * 4 + 2 + 'px';
+                document.body.appendChild(snow);
+            }
+        }
+
+        // Initialize snow on load
+        window.addEventListener('load', () => {
+            createSnow();
+            createBubbles();
+        });
+    </script>
 </body>
 </html>
