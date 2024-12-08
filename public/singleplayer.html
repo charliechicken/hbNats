@@ -144,6 +144,11 @@
         </script>
 
     <style>
+        #ttsToggle.active {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}
         .badge {
     font-size: 0.9em;
     padding: 0.5em 0.8em;
@@ -261,9 +266,23 @@
         }
 
         #setType {
+            height: auto;
+            min-width: 100%;
+        }
+
+        #setType option {
             padding: 8px;
-            border-radius: 6px;
-            border: 2px solid #e0e0e0;
+            border-bottom: 1px solid #eee;
+        }
+
+        #setType option:last-child {
+            border-bottom: none;
+        }
+
+        #setType:focus option:checked {
+            background: linear-gradient(0deg, #1976d2 0%, #1976d2 100%);
+            background-color: #1976d2 !important;
+            color: white;
         }
 
         #result {
@@ -943,13 +962,14 @@
         }
 
         .search-confirm {
-            position: fixed;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            display: none;
-            z-index: 1000;
+    position: absolute;  /* Changed from fixed */
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 1000;
+            max-width: 300px;
         }
 
         .search-confirm .btn {
@@ -1132,6 +1152,20 @@
             background-color: #CD7F32 !important;
             color: white !important;
         }
+
+        #startButton {
+            display: block;
+            margin: 20px auto;
+            transition: all 0.3s ease;
+        }
+
+        #startButton:disabled {
+            background-color: #ccc;
+            border-color: #bbb;
+            cursor: not-allowed;
+        }
+
+
     </style>
 </head>
 <body>
@@ -1202,14 +1236,14 @@
 
             <div class="control-group">
                 <label for="setType">Question Sets</label>
-                <select id="setType" class="form-control">
+                <select id="setType" class="form-control" multiple size="6">
                     <option value="all">All Questions (20,050 questions)</option>
                     <option value="bowl-nationals">History Bowl Nationals (5,187 questions)</option>
                     <option value="bowl-regionals">History Bowl Regionals (8,085 questions)</option>
                     <option value="bee-nationals">History Bee Nationals (2,777 questions)</option>
                     <option value="bee-regionals">History Bee Regionals (4,001 questions)</option>
-                    <option value="third-quarter">Third Quarter (1,912 questions)</option>
                 </select>
+                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple sets</small>
             </div>
 
             <div class="control-group">
@@ -1244,6 +1278,11 @@
             <div class="control-group">
                 <button id="audioToggle" class="btn btn-sm audio-off w-100">🔈 Audio Off</button>
             </div>
+            <!--
+            <div class="control-group">
+                <button id="ttsToggle" class="btn btn-sm w-100">🔊 TTS Off</button>
+            </div>
+        -->
         </div>
     </div>
 
@@ -1255,11 +1294,16 @@
         let currentIndex = 0;
         let words = [];
         let intervalId;
+        let isTTSEnabled = false;
+        let speechUtterance = null;
         let audioEnabled = false;
         const answerPlaceholder = document.getElementById('answer');
         answerPlaceholder.style.display = 'none';
         let allQuestions = null;
         let matches = []; // Add this at the top with other global variables
+
+        // Add these variables at the top of your script
+        let speechSynthesis = window.speechSynthesis;
 
         // Word frequency analyzer with blacklist
         const wordFrequencyAnalyzer = {
@@ -1277,10 +1321,10 @@
             exceptions: new Set(['of', 'at', 'on', 'during', 'between', 'crusade']),
 
             // Single words that should only be blacklisted when they appear alone
-            singleWordBlacklist: new Set(['empire', 'battle', 'war']),
+            singleWordBlacklist: new Set(['empire', 'battle', 'war', 'ruled']),
 
             // Two-word phrases that should be blacklisted unless part of longer phrases
-            twoWordBlacklist: new Set(['battle of', 'member of', 'agents of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of', 'rather than', 'war between', 'fired on', 'surprise attack', 'us president', 'war’s battle', 'two countries']),
+            twoWordBlacklist: new Set(['battle of', 'duke of', 'members of', 'member of', 'agents of', 'war of', 'empire of', 'siege of', 'site of', 'attack on', 'under him', 'series of', 'republic of', 'leader of', 'treaty of', 'defeat at', 'sack of', 'death of', 'control of', 'fall of', 'plague of', 'holder of', 'before mentioned', 'on partial', 'support of', 'not prompt', 'league of', 'part of', 'civil war', 'world war', 'king of', 'group of', 'author of', 'out of', 'body of', 'war ii', 'kingdom of', 'invasion of', 'most famous', 'son of', 'much of', 'war two', 'form of', 'assassination of', 'act of', 'political party', 'victory at', 'history of', 'island of', 'thousands of', 'holy roman', 'book of', 'council of', 'construction of', 'favor of', 'town of', 'many of', '[prompt on', 'most of', 'i of', 'put down', 'john f', 'word forms', 'raid on', 'portion of', 'two of', 'african country', 'law of', 'scientist proved', 'scientist disproved', 'father of', 'rather than', 'war between', 'fired on', 'surprise attack', 'us president', "war's battle", 'two countries']),
 
             // Add this after the twoWordBlacklist declaration (around line 1176)
             threeWordBlacklist: new Set([
@@ -1292,7 +1336,7 @@
                 'author of the', 'body of the', 'kingdom of the', 'invasion of the',
                 'son of the', 'form of the', 'act of the', 'victory at the',
                 'history of the', 'island of the', 'council of the', 'town of the',
-                'law of the', 'war between the', 'fired on the', 'attack on the', 'war’s battle of'
+                'law of the', 'war between the', 'fired on the', 'attack on the', "war's battle of"
             ]),
 
             hasBlacklistedWords(phrase) {
@@ -1465,6 +1509,7 @@
         };
 
         async function preloadQuestions() {
+            const startButton = document.getElementById('startButton');
             const loadingIndicator = document.createElement('div');
             loadingIndicator.className = 'alert alert-info text-center';
             loadingIndicator.innerHTML = `
@@ -1519,25 +1564,35 @@
                     );
 
                 loadingIndicator.remove();
+                startButton.disabled = false;
+                startButton.textContent = 'Start Reading Questions';
             } catch (error) {
                 console.error('Error:', error);
                 loadingIndicator.className = 'alert alert-danger text-center';
                 loadingIndicator.textContent = 'Error loading questions. Please refresh the page.';
+                startButton.textContent = 'Error Loading Questions';
             }
         }
 
         async function fetchQuestion() {
             try {
-                const setType = document.getElementById('setType').value;
+                const setTypeSelect = document.getElementById('setType');
+                const selectedOptions = Array.from(setTypeSelect.selectedOptions).map(option => option.value);
                 
-                // Determine which repositories to fetch from based on setType
-                let repositories = [];
-                if (setType === 'all' || setType.startsWith('bowl')) {
-                    repositories.push('sets');
+                if (selectedOptions.length === 0) {
+                    throw new Error('Please select at least one question set');
                 }
-                if (setType === 'all' || setType.startsWith('bee')) {
-                    repositories.push('beeSets');
-                }
+
+                // Determine which repositories to fetch from based on selected options
+                let repositories = new Set();
+                selectedOptions.forEach(setType => {
+                    if (setType === 'all' || setType.startsWith('bowl')) {
+                        repositories.add('sets');
+                    }
+                    if (setType === 'all' || setType.startsWith('bee')) {
+                        repositories.add('beeSets');
+                    }
+                });
 
                 let allFiles = [];
                 for (const repo of repositories) {
@@ -1545,33 +1600,36 @@
                     const filesResponse = await fetch(repoUrl);
                     const files = await filesResponse.json();
                     
-                    // Filter JSON files based on setType
+                    // Filter JSON files based on selected types
                     const jsonFiles = files
                         .filter(file => file.name.endsWith('.json'))
                         .filter(file => {
-                            if (setType === 'all') return true;
                             const isNationals = file.name.toLowerCase().includes('nationals');
                             const isBee = repo === 'beeSets';
                             
-                            switch(setType) {
-                                case 'bowl-nationals':
-                                    return !isBee && isNationals;
-                                case 'bowl-regionals':
-                                    return !isBee && !isNationals;
-                                case 'bee-nationals':
-                                    return isBee && isNationals;
-                                case 'bee-regionals':
-                                    return isBee && !isNationals;
-                                default:
-                                    return true;
-                            }
+                            return selectedOptions.some(setType => {
+                                switch(setType) {
+                                    case 'all':
+                                        return true;
+                                    case 'bowl-nationals':
+                                        return !isBee && isNationals;
+                                    case 'bowl-regionals':
+                                        return !isBee && !isNationals;
+                                    case 'bee-nationals':
+                                        return isBee && isNationals;
+                                    case 'bee-regionals':
+                                        return isBee && !isNationals;
+                                    default:
+                                        return false;
+                                }
+                            });
                         });
                     
                     allFiles.push(...jsonFiles);
                 }
 
                 if (allFiles.length === 0) {
-                    throw new Error(`No sets found for set type: ${setType}`);
+                    throw new Error('No sets found for selected question sets');
                 }
                 
                 // Get a random file
@@ -1627,7 +1685,7 @@
                 console.error('Error:', error);
                 document.getElementById('result').innerHTML = `
                     <div class="alert alert-danger">
-                        Error loading question. Please try again.
+                        ${error.message}
                     </div>`;
             }
         }
@@ -1635,6 +1693,13 @@
         function startDisplayingWords() {
             const sliderValue = document.getElementById('speed').value;
             const speed = 1100 - sliderValue;
+            
+            // Start TTS for full question
+            if (isTTSEnabled) {
+                const cleanQuestion = currentQuestion.question.replace(/<[^>]+>/g, '');
+                readQuestionWithTTS(cleanQuestion);
+            }
+            
             intervalId = setInterval(displayNextWord, speed);
         }
 
@@ -1759,6 +1824,10 @@
         function handleBuzz() {
             if (intervalId) {
                 clearInterval(intervalId);
+                // Cancel TTS when buzzing
+                if (speechUtterance) {
+                    window.speechSynthesis.cancel();
+                }
                 const answerInput = document.getElementById('answer');
                 answerInput.disabled = false;
                 answerInput.style.display = 'block';
@@ -1769,7 +1838,6 @@
                 if (audioEnabled) {
                     document.getElementById('buzzSound').play();
                 }
-                    
             }
         }
 
@@ -1885,7 +1953,38 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            const startButton = document.createElement('button');
+            startButton.id = 'startButton';
+            startButton.className = 'btn btn-primary btn-lg mb-4';
+            startButton.textContent = 'Loading Questions...';
+            startButton.disabled = true;
+            
+            // Insert start button at the top of the question container
+            const questionContainer = document.querySelector('.question-container');
+            questionContainer.insertBefore(startButton, questionContainer.firstChild);
+
             await preloadQuestions();
+            
+            // Pre-select 'all' option and trigger change event
+            const setTypeSelect = document.getElementById('setType');
+            const allOption = Array.from(setTypeSelect.options).find(option => option.value === 'all');
+            if (allOption) {
+                allOption.selected = true;
+                setTypeSelect.dispatchEvent(new Event('change'));
+            }
+
+            // Enable start button after questions are loaded
+            startButton.disabled = false;
+            startButton.textContent = 'Start Reading Questions';
+
+            // Add start button click handler
+            startButton.addEventListener('click', () => {
+                startButton.style.display = 'none';  // Hide the button
+                document.getElementById('buzz').disabled = false; // Enable buzz button
+                document.getElementById('answer').style.display = 'none'; // Hide answer input
+                document.getElementById('submit').classList.add('hidden'); // Hide submit button
+                fetchQuestion();
+            });
             
             // Add search input listener
             const searchInput = document.getElementById('searchInput');
@@ -3002,6 +3101,171 @@
                 // Your existing question set handling code
             }
         }
+
+        function filterQuestionsBySelectedSets(selectedValues) {
+            if (selectedValues.includes('all')) {
+                return allQuestions;
+            }
+
+            return allQuestions.filter(q => {
+                if (selectedValues.includes('bowl-nationals') && q.setName.toLowerCase().includes('nationals') && !q.isBeeset) {
+                    return true;
+                }
+                if (selectedValues.includes('bowl-regionals') && q.setName.toLowerCase().includes('regionals') && !q.isBeeset) {
+                    return true;
+                }
+                if (selectedValues.includes('bee-nationals') && q.setName.toLowerCase().includes('nationals') && q.isBeeset) {
+                    return true;
+                }
+                if (selectedValues.includes('bee-regionals') && q.setName.toLowerCase().includes('regionals') && q.isBeeset) {
+                    return true;
+                }
+                if (selectedValues.includes('third-quarter') && q.setName.toLowerCase().includes('third quarter')) {
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        // Modify the existing event listener for setType
+        document.getElementById('setType').addEventListener('change', function() {
+            const selectedValues = Array.from(this.selectedOptions).map(option => option.value);
+            const filteredQuestions = filterQuestionsBySelectedSets(selectedValues);
+            
+            if (filteredQuestions.length === 0) {
+                alert('Please select at least one question set');
+                return;
+            }
+
+            // Update the available questions
+            currentQuestions = filteredQuestions;
+            
+            // Update the question count display
+            const countDisplay = document.querySelector('.question-count');
+            if (countDisplay) {
+                countDisplay.textContent = `${filteredQuestions.length} questions available`;
+            }
+
+            resetGame();
+        });
+
+        // Initialize when page loads
+        window.addEventListener('load', async () => {
+            await preloadQuestions();
+            
+            // Pre-select 'all' option
+            const setTypeSelect = document.getElementById('setType');
+            const allOption = Array.from(setTypeSelect.options).find(option => option.value === 'all');
+            if (allOption) {
+                allOption.selected = true;
+            }
+
+            // Add start button click handler
+            document.getElementById('startButton').addEventListener('click', () => {
+                document.getElementById('startButton').style.display = 'none';
+                fetchQuestion();
+            });
+        });
+
+        function showSearchConfirm(event, selectedText) {
+            const searchConfirm = document.querySelector('.search-confirm');
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            // Position the popup relative to the highlighted text
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+            
+            searchConfirm.style.top = `${rect.bottom + scrollTop + 10}px`;
+            searchConfirm.style.left = `${Math.min(rect.left + scrollLeft, window.innerWidth - 320)}px`;
+            
+            // Update content and show
+            searchConfirm.querySelector('.selected-text').textContent = selectedText;
+            searchConfirm.style.display = 'block';
+            
+            // Ensure popup is fully visible
+            const popupRect = searchConfirm.getBoundingClientRect();
+            if (popupRect.right > window.innerWidth) {
+                searchConfirm.style.left = `${window.innerWidth - popupRect.width - 20}px`;
+            }
+            if (popupRect.bottom > window.innerHeight) {
+                searchConfirm.style.top = `${rect.top + scrollTop - popupRect.height - 10}px`;
+            }
+        }
+
+        // Add this function to handle TTS
+        function readQuestionWithTTS(question) {
+            if (speechUtterance) {
+                speechSynthesis.cancel();
+            }
+            
+            if (isTTSEnabled) {
+                speechUtterance = new SpeechSynthesisUtterance(question);
+                const speed = document.getElementById('speed').value;
+                speechUtterance.rate = 800 / speed; // Adjust rate based on word display speed
+                speechSynthesis.speak(speechUtterance);
+            }
+        }
+
+
+
+        // Add cleanup for TTS when stopping question
+        function stopQuestion() {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+            if (speechUtterance) {
+                speechSynthesis.cancel();
+            }
+        }
+
+        // Initialize TTS
+        document.addEventListener('DOMContentLoaded', () => {
+            const ttsToggle = document.getElementById('ttsToggle');
+            if (!ttsToggle) return;
+            
+            // Check for saved preference
+            isTTSEnabled = localStorage.getItem('ttsEnabled') === 'true';
+            
+            // Set initial state
+            if (isTTSEnabled) {
+                ttsToggle.innerHTML = '🔊 TTS On';
+                ttsToggle.classList.add('active');
+            }
+            
+            ttsToggle.addEventListener('click', () => {
+                isTTSEnabled = !isTTSEnabled;
+                localStorage.setItem('ttsEnabled', isTTSEnabled);
+                
+                // Cancel any ongoing speech when turning off
+                if (!isTTSEnabled && speechUtterance) {
+                    window.speechSynthesis.cancel();
+                }
+                
+                // Update button text and style
+                ttsToggle.innerHTML = isTTSEnabled ? '🔊 TTS On' : '🔊 TTS Off';
+                ttsToggle.classList.toggle('active', isTTSEnabled);
+                
+                console.log('TTS Enabled:', isTTSEnabled); // Debug line
+            });
+        });
+
+        // Add this function for TTS
+        function readQuestionWithTTS(text) {
+            if (!isTTSEnabled) return;
+            
+            // Cancel any ongoing speech
+            if (speechUtterance) {
+                window.speechSynthesis.cancel();
+            }
+            
+            speechUtterance = new SpeechSynthesisUtterance(text);
+            const speed = document.getElementById('speed').value;
+            speechUtterance.rate = 800 / speed; // Adjust rate based on word display speed
+            window.speechSynthesis.speak(speechUtterance);
+        }
+
     </script>
 
     <!-- Search Modal -->
