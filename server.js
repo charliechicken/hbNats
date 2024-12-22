@@ -9,6 +9,7 @@ const { WebSocketServer } = require('ws');
 const http = require('http');
 const https = require('https');
 const stringSimilarity = require('string-similarity');
+const fetch = require('node-fetch');
 
 // Enable CORS
 app.use(cors());
@@ -18,6 +19,9 @@ app.use(express.static('public'));
 
 // Serve audio files
 app.use('/audio', express.static('audio'));
+
+// Add static middleware for root directory files
+app.use(express.static(path.join(process.cwd())));
 
 // Add these routes before the WebSocket setup
 app.get('/:folder', async (req, res) => {
@@ -42,6 +46,11 @@ app.get('/:folder', async (req, res) => {
 app.use('/sets', express.static(path.join(process.cwd(), 'sets')));
 app.use('/beeSets', express.static(path.join(process.cwd(), 'beeSets')));
 
+// Serve ads.txt from root directory
+app.get('/ads.txt', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'ads.txt'));
+});
+
 app.get('/api/firebase-config', (req, res) => {
     res.json({
         apiKey: process.env.FIREBASE_API_KEY,
@@ -49,6 +58,17 @@ app.get('/api/firebase-config', (req, res) => {
         projectId: process.env.FIREBASE_PROJECT_ID,
         databaseURL: process.env.FIREBASE_DATABASE_URL
     });
+});
+
+app.get('/api/qbreader', async (req, res) => {
+    try {
+        const response = await fetch(`https://qbreader.org/api/query?${req.query}`);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('QB Reader proxy error:', error);
+        res.status(500).json({ error: 'Failed to fetch from QB Reader' });
+    }
 });
 
 const server = http.createServer(app);
