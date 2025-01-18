@@ -338,50 +338,27 @@ function startWordRevealing(gameState) {
 }
 
 function normalizeAnswer(answer) {
-    if (!answer) return [];
+    if (!answer) return { answers: [], prompts: [] };
     
-    answer = answer.toLowerCase().trim()
-        .replace(/page\s+\d+/g, '').trim()
-        .replace(/\{[IVX]+\}/g, '').trim();
+    const answers = [];
+    const prompts = [];
     
-    let answers = [];
-    let prompts = [];
+    // Convert to lowercase and remove extra spaces
+    answer = answer.toLowerCase().trim();
     
-    // Extract prompt instructions
-    const promptMatch = answer.match(/prompt on (.*?)(?:\)|;|$)/i);
-    if (promptMatch) {
-        prompts = promptMatch[1].split(/\s*(?:or|,)\s*/)
-            .map(p => p.toLowerCase().trim())
-            .filter(p => p.length >= 2);
-    }
+    // Extract the main answer (before any parentheses)
+    const mainAnswer = answer.split('(')[0].trim();
+    answers.push(mainAnswer);
     
-    const tagMatches = answer.match(/<[bu]>(.*?)<\/[bu]>|_(.*?)_/g);
-    
-    if (tagMatches) {
-        const emphasizedAnswers = tagMatches.map(match => 
-            match.replace(/<[^>]+>|_/g, '').trim()
-        );
-        
-        let fullAnswer = answer.replace(/<[^>]+>/g, '').trim();
-        
-        // Split on "or", "and", and handle parentheses
-        const parts = fullAnswer.split(/\s*(?:\(|\)|or|and)\s*/i)
-            .map(part => part.trim())
-            .filter(Boolean);
-        
-        // Process each part and its combinations
-        parts.forEach(part => {
-            const cleaned = part.replace(/[^a-z0-9\s-]/g, '').trim();
-            if (cleaned.length >= 3) {
-                answers.push(cleaned);
-            }
-        });
-        
-        // Add emphasized parts
-        emphasizedAnswers.forEach(ans => {
-            const cleaned = ans.replace(/[^a-z0-9\s-]/g, '').trim();
-            if (cleaned.length >= 3) {
-                answers.push(cleaned);
+    // Extract parenthetical answers
+    const parentheticalMatch = answer.match(/\((.*?)\)/g);
+    if (parentheticalMatch) {
+        parentheticalMatch.forEach(match => {
+            const cleanMatch = match.replace(/^\(|\)$/g, '').trim();
+            if (cleanMatch.toLowerCase().startsWith('accept')) {
+                // Add the accepted answer without the "accept" prefix
+                const acceptedAnswer = cleanMatch.replace(/^accept\s+/i, '').trim();
+                answers.push(acceptedAnswer);
             }
         });
     }
@@ -390,47 +367,51 @@ function normalizeAnswer(answer) {
         answers: [...new Set(answers)]
             .filter(ans => ans && ans.length >= 3)
             .map(ans => ans.replace(/\s+/g, ' ').trim()),
-        prompts: [...new Set(prompts)]
+        prompts
     };
 }
 
 function checkAnswer(userAnswer, correctAnswer) {
-    // Remove "page X" from user answer
-    const normalizedUser = userAnswer.toLowerCase().trim()
+    // Remove "page X" from user answer and normalize
+    const normalizedUserInput = userAnswer.toLowerCase().trim()
         .replace(/page\s+\d+/g, '').trim();
         
     const { answers, prompts } = normalizeAnswer(correctAnswer);
     
     console.log('Answer Check:', {
-        userAnswer: normalizedUser,
+        userAnswer: normalizedUserInput,
         answers,
         prompts
     });
 
     // Check if answer needs prompting
-    if (prompts.some(p => p === normalizedUser)) {
+    if (prompts.some(p => p === normalizedUserInput)) {
         return { needsPrompt: true };
     }
 
-    // Check for correct answer with exact similarity matching
+    // Check for correct answer with more lenient matching
     const isCorrect = answers.some(answer => {
-        // Calculate similarity between full strings
-        const similarity = stringSimilarity.compareTwoStrings(normalizedUser, answer);
+        // Remove ALL HTML tags and clean up the answer
+        const cleanAnswer = answer.replace(/<\/?[^>]+(>|$)/g, '').toLowerCase().trim();
         
-        // Count words in both answers
-        const userWordCount = normalizedUser.split(/\s+/).length;
-        const answerWordCount = answer.split(/\s+/).length;
+        // Remove special characters and normalize spaces
+        const normalizedAnswer = cleanAnswer.replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+        const normalizedUser = normalizedUserInput.replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
         
-        // If correct answer has multiple words, user must provide more than one word
-        if (answerWordCount > 1 && userWordCount === 1) {
-            return false;
-        }
+        // Split into words for the full answer
+        const answerWords = normalizedAnswer.split(/\s+/);
+        const userWords = normalizedUser.split(/\s+/);
         
-        // Only accept if similarity is at least 80% and lengths are similar
-        return similarity >= 0.8 && 
-               Math.abs(normalizedUser.length - answer.length) <= Math.max(answer.length * 0.2, 2);
+        // Check if user's answer matches any complete word in the answer
+        return userWords.every(userWord => 
+            answerWords.some(answerWord => 
+                userWord === answerWord || 
+                (userWord.length > 3 && answerWord.includes(userWord))
+            )
+        );
     });
 
+    console.log('Final answer check result:', { isCorrect });
     return { isCorrect };
 }
 
@@ -526,20 +507,16 @@ wss.on('connection', (ws) => {
                 case 'submit-answer':
                     if (gameState.isAnswering && gameState.buzzOrder[0] === username) {
                         const userAnswer = data.answer.toLowerCase().trim();
-                        const isCorrect = checkAnswer(userAnswer, gameState.currentQuestion.answer);
+                        const result = checkAnswer(userAnswer, gameState.currentQuestion.answer);
 
-                        if (isCorrect) {
-                            // Calculate points
+                        if (result.isCorrect) {
                             const points = calculatePoints(gameState.currentQuestion, gameState.revealedWords);
+                            const playerIndex = gameState.players.findIndex(p => p.username === username);
+                            if (playerIndex !== -1) {
+                                gameState.players[playerIndex].score = (gameState.players[playerIndex].score || 0) + points;
+                            }
                             
-                            // Update player score
-                            gameState.players = gameState.players.map(p => ({
-                                ...p,
-                                score: p.username === username ? (p.score || 0) + points : p.score
-                            }));
-
-                            // Broadcast correct answer to all players
-                            broadcast({
+                            ws.send(JSON.stringify({
                                 type: 'answer-submitted',
                                 username,
                                 answer: data.answer,
@@ -549,54 +526,22 @@ wss.on('connection', (ws) => {
                                 category: gameState.currentQuestion.category,
                                 pdfLink: gameState.currentQuestion.pdfLink,
                                 isCorrect: true,
-                                points: points,
+                                points,
                                 players: gameState.players
-                            });
-                        } else {
-                            // Keep existing incorrect answer handling
-                            gameState.isAnswering = false;
-                            gameState.buzzOrder = gameState.buzzOrder.filter(u => u !== username);
-                            
-                            // Update hasBuzzed state for the current player
-                            gameState.players = gameState.players.map(p => ({
-                                ...p,
-                                hasBuzzed: p.username === username ? true : p.hasBuzzed
                             }));
-
-                            // Check if all players have answered incorrectly
-                            if (checkAllPlayersAnsweredIncorrectly()) {
-                                broadcast({
-                                    type: 'all-buzzed',
-                                    fullQuestion: gameState.currentQuestion.question,
-                                    answer: gameState.currentQuestion.answer,
-                                    correctAnswer: gameState.currentQuestion.answer,
-                                    username: username,
-                                    answer: data.answer,
-                                    isCorrect: false,
-                                    setName: gameState.currentQuestion.setName,
-                                    category: gameState.currentQuestion.category,
-                                    pdfLink: gameState.currentQuestion.pdfLink
-                                });
-                            } else {
-                                broadcast({
-                                    type: 'game-state',
-                                    isAnswering: false,
-                                    players: gameState.players,
-                                    isGameInProgress: gameState.isGameInProgress,
-                                    revealedWords: gameState.revealedWords
-                                });
-                                
-                                broadcast({
-                                    type: 'answer-submitted',
-                                    username: username,
-                                    answer: data.answer,
-                                    correctAnswer: gameState.currentQuestion.answer,
-                                    isCorrect: false,
-                                    players: gameState.players
-                                });
-
-                                startWordRevealing(gameState);
-                            }
+                        } else {
+                            ws.send(JSON.stringify({
+                                type: 'answer-submitted',
+                                username,
+                                answer: data.answer,
+                                correctAnswer: gameState.currentQuestion.answer,
+                                fullQuestion: gameState.currentQuestion.question,
+                                setName: gameState.currentQuestion.setName,
+                                category: gameState.currentQuestion.category,
+                                pdfLink: gameState.currentQuestion.pdfLink,
+                                isCorrect: false,
+                                players: gameState.players
+                            }));
                         }
                     }
                     break;
