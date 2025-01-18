@@ -13,7 +13,7 @@ const gameState = {
     revealedWords: [],
     wordIndex: 0,
     interval: null,
-    speed: 800,
+    speed: 1000,
     players: [],
     isAnswering: false,
     currentInterval: null,  // Track current interval
@@ -37,7 +37,7 @@ function addSpeedControl() {
     const speedControl = `
         <div class="control-group mt-3">
             <label for="speed">Reading Speed</label>
-            <input type="range" id="speed" min="200" max="800" value="${gameState.speed}" class="form-control">
+            <input type="range" id="speed" min="100" max="2000" step="100" value="${gameState.speed}" class="form-control">
         </div>
     `;
     const controlsDiv = document.querySelector('.controls');
@@ -47,10 +47,11 @@ function addSpeedControl() {
         // Send speed change to server
         document.getElementById('speed').addEventListener('input', (e) => {
             const rawValue = parseInt(e.target.value);
-            gameState.speed = rawValue;
+            const speed = 2100 - rawValue; // Invert the speed value so higher = faster
+            gameState.speed = speed;
             safeSend(JSON.stringify({
                 type: 'speed-change',
-                speed: rawValue
+                speed: speed
             }));
         });
     }
@@ -178,9 +179,7 @@ function handleWebSocketMessage(data) {
                             Correct answer: ${data.currentState.answer}
                         </div>
                         <div class="question-info">
-                            <p>Set: <a href="${data.currentState.pdfLink}" target="_blank">${data.currentState.setName}</a></p>
-                            <p>Category: ${data.currentState.category}</p>
-                        </div>
+                            <p>Set: <a href="${data.currentState.pdfLink}" target="_blank">${data.currentState.setName}</a></p>                        </div>
                         <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
                     `;
                 }
@@ -225,7 +224,8 @@ function handleWebSocketMessage(data) {
         case 'speed-changed':
             const speedSlider = document.getElementById('speed');
             if (speedSlider) {
-                speedSlider.value = data.speed;
+                const displayValue = 2100 - data.speed; // Convert back to slider value
+                speedSlider.value = displayValue;
             }
             gameState.speed = data.speed;
             break;
@@ -451,8 +451,24 @@ function handleAnswerSubmitted(data) {
     const display = document.getElementById('question-display');
     updatePlayersList(data.players);
     
-    if (data.isCorrect) {
-        // Show points popup with the points from server
+    // Normalize answers using the same logic as singleplayer
+    const userAnswer = data.answer.toLowerCase().trim();
+    const correctAnswer = data.correctAnswer.toLowerCase().trim();
+    
+    // Remove HTML tags and normalize
+    const normalizedUserAnswer = userAnswer.replace(/<[^>]+>/g, '').trim()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
+    
+    const normalizedCorrectAnswer = correctAnswer.replace(/<[^>]+>/g, '').trim()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
+    
+    // Check for exact match or acceptable variations
+    const isCorrect = normalizedUserAnswer === normalizedCorrectAnswer || 
+                     checkAcceptableAnswers(normalizedUserAnswer, normalizedCorrectAnswer);
+    
+    if (data.isCorrect && isCorrect) {  // Double check both server and client validation
         if (data.points) {
             showPointsPopup(data.points, data.username);
         }
@@ -475,6 +491,34 @@ function handleAnswerSubmitted(data) {
             <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
         `;
         
+        const buzzButton = document.getElementById('buzz-button');
+        if (buzzButton) {
+            buzzButton.disabled = true;
+            buzzButton.style.opacity = '0.5';
+        }
+        if (gameState.currentInterval) {
+            clearInterval(gameState.currentInterval);
+            gameState.currentInterval = null;
+        }
+    } else {
+        display.innerHTML = `
+            <div class="full-question mb-3">
+                ${data.fullQuestion}
+            </div>
+            <div class="alert alert-danger">
+                ${data.username}'s answer: ${data.answer}
+                <br>
+                Incorrect!
+                <br>
+                The answer was: ${data.correctAnswer}
+            </div>
+            <div class="question-info">
+                <p>Set: <a href="${data.pdfLink}" target="_blank">${data.setName}</a></p>
+                <p>Category: ${data.category}</p>
+            </div>
+            <button onclick="startNewGame()" class="btn btn-primary mt-3">Next Question (j)</button>
+        `;
+        
         // Disable buzz button and clear intervals
         const buzzButton = document.getElementById('buzz-button');
         if (buzzButton) {
@@ -486,6 +530,34 @@ function handleAnswerSubmitted(data) {
             gameState.currentInterval = null;
         }
     }
+}
+
+// Add helper function for checking acceptable answers
+function checkAcceptableAnswers(userAnswer, correctAnswer) {
+    // Remove articles and normalize
+    const normalizedUser = userAnswer.replace(/^(the|a|an) /, '').toLowerCase().trim()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
+    
+    const normalizedCorrect = correctAnswer.replace(/^(the|a|an) /, '').toLowerCase().trim()
+        .replace(/<\/?[^>]+(>|$)/g, '') // Remove HTML tags
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
+    
+    // Direct match after normalization
+    if (normalizedUser === normalizedCorrect) return true;
+    
+    // Split into words
+    const userWords = normalizedUser.split(/\s+/);
+    const correctWords = normalizedCorrect.split(/\s+/);
+    
+    // Check if user's answer matches any complete word in the answer
+    return userWords.every(userWord => 
+        correctWords.some(correctWord => 
+            userWord === correctWord || 
+            (userWord.length > 3 && correctWord.includes(userWord))
+        )
+    );
 }
 
 // Add this to handle next question button and 'j' key

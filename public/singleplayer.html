@@ -372,8 +372,74 @@
         }
 
         .navbar {
-            margin-bottom: .5rem;
-            padding: 8px 1rem;
+            background: #1a237e;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+            font-size: 1.4rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .nav-link {
+            color: rgba(255,255,255,0.9) !important;
+            margin: 0 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-1px);
+        }
+
+        .nav-item.active .nav-link {
+            background: rgba(255,255,255,0.2);
+            color: white !important;
+        }
+
+        #userStats {
+            background: rgba(255,255,255,0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            color: white;
+            margin-right: 1rem;
+        }
+
+        .auth-button {
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .auth-button:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: rgba(255,255,255,0.4);
+            transform: translateY(-1px);
+        }
+
+        .dropdown-menu {
+            background: #fff;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-top: 0.5rem;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: #f8f9fa;
+            transform: translateX(4px);
         }
 
         .modal-dialog.modal-lg {
@@ -838,7 +904,7 @@
         }
 
         .navbar {
-            background-color: #000000 !important; /* Azure */
+            background-color: #163779 !important; /* Azure */
         }
         
         /* Optional: adjust text color for better contrast */
@@ -1077,7 +1143,33 @@
 
         .username-dropdown {
             position: relative;
-            display: inline-block;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            border: 1px solid #ffffff;
+            padding-right: 10px;
+            margin-right: 10px;
+        }
+
+        .username-dropdown:hover {
+            border-color: #e9ecef;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            
+        }
+
+        /* Add a subtle indicator */
+        .username-dropdown::after {
+            margin-left: 8px;
+            content: '👤';
+            opacity: 0.6;
+        }
+
+        .username-dropdown:hover::after {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
         .dropdown-content {
@@ -1166,6 +1258,45 @@
             cursor: not-allowed;
         }
 
+        .bg-light-yellow {
+            background-color: #fffff0 !important;
+        }
+        
+        .bg-light-violet {
+            background-color: #f8f0ff !important;
+        }
+        
+        .badge.bg-purple {
+            background-color: #6f42c1 !important;
+        }
+        
+        .card {
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .analysis-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .weaknesses-section {
+            margin-top: 15px;
+        }
+
+        .practice-category {
+            margin-left: 10px;
+        }
+
+        .bg-light-red {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
 
     </style>
 </head>
@@ -1205,7 +1336,7 @@
                 
                 <div id="userStats" class="text-end" style="display: none;">
                     <span class="badge bg-success me-2">Correct: <span id="correctCount">0</span></span>
-                    <span class="badge bg-light">Total Answered: <span id="totalCount">0</span></span>
+                    <span class="badge bg-dark">Total Answered: <span id="totalCount">0</span></span>
                 </div>
             </div>
         </div>
@@ -1231,10 +1362,13 @@
 
         <div class="controls-container">
             <div class="control-group">
+                
                 <label for="speed">Reading Speed</label>
                 <input type="range" id="speed" min="600" max="1000" value="800">
             </div>
-
+            <button id="showAnalysis" class="btn btn-info" onclick="showPerformanceAnalysis()">
+                📊 Performance Analysis
+            </button>
             <div class="control-group">
                 <label for="setType">Question Sets</label>
                 <select id="setType" class="form-control" multiple size="6">
@@ -1877,57 +2011,121 @@
             }
         });
 
+        let currentQuestions = [];
+
         async function searchQuestions() {
-            const searchInput = document.getElementById('searchInput').value.trim();
+            const searchInput = document.getElementById('searchInput').value;
             const searchType = document.querySelector('input[name="searchType"]:checked').value;
+            const includeQbreader = document.getElementById('includeQbreader').checked;
             
-            if (!searchInput) return;
+            if (!searchInput.trim()) return;
             
-            const searchResults = document.getElementById('searchResults');
+            // Show loading state and modals
+            document.getElementById('searchResults').innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary"></div>
+                    <div>Searching questions...</div>
+                </div>`;
+            
+            $('#searchModal').modal('hide');
             $('#resultsModal').modal('show');
             
             try {
-                // Fetch questions if they haven't been loaded yet
-                if (!allQuestions || allQuestions.length === 0) {
-                    await preloadQuestions();
-                }
+                // Split search terms and clean them
+                const searchTerms = searchInput.split(',').map(term => term.trim()).filter(term => term.length > 0);
                 
-                // Split by commas and create RegExp patterns for each group
-                const searchTermGroups = searchInput.split(',').map(group => {
-                    const phrase = group.trim();
-                    const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    return new RegExp(`\\b${escapedPhrase}\\b`, 'i');
-                });
+                // Only get QB Reader results if checkbox is checked
+                const qbReaderResults = includeQbreader ? await searchQBReader(searchInput, searchType) : [];
                 
-                matches = allQuestions.filter(q => {
-                    if (!q || (!q.question && !q.answer)) return false;
+                // Get local results for all terms
+                const localResults = allQuestions.filter(q => {
+                    const questionText = (q.question || '').toLowerCase();
+                    const answerText = (q.answer || '').toLowerCase().replace(/<[^>]+>/g, '');
                     
-                    const questionText = (q.question || '').replace(/<[^>]+>/g, '');
-                    const answerText = (q.answer || '').replace(/<[^>]+>/g, '');
-                    
-                    return searchTermGroups.some(pattern => {
-                        switch (searchType) {
-                            case 'question':
-                                return pattern.test(questionText);
-                            case 'answer':
-                                return pattern.test(answerText);
-                            default: // 'both'
-                                return pattern.test(questionText) || pattern.test(answerText);
+                    return searchTerms.some(term => {
+                        const searchLower = term.toLowerCase();
+                        if (searchType === 'question') {
+                            return questionText.includes(searchLower);
+                        } else if (searchType === 'answer') {
+                            return answerText.includes(searchLower);
                         }
+                        return questionText.includes(searchLower) || answerText.includes(searchLower);
                     });
                 });
 
-                selectedQuestions = [...matches];
+                // Combine results
+                currentQuestions = [...localResults, ...qbReaderResults];
+                
+                // Display results with existing code
+                const resultsContainer = document.getElementById('searchResults');
+                resultsContainer.innerHTML = currentQuestions.map((q, index) => {
+                    let cardClass = 'bg-white';
+                    let sourceType = '';
+                    let badgeClass = '';
+                    
+                    if (q.isQBReader) {
+                        cardClass = 'bg-light';
+                        sourceType = 'QB Reader';
+                        badgeClass = 'bg-info';
+                    } else if (q.setName.toLowerCase().includes('bee')) {
+                        cardClass = 'bg-light-violet';
+                        sourceType = 'History Bee';
+                        badgeClass = 'bg-purple';
+                    } else {
+                        cardClass = 'bg-light-yellow';
+                        sourceType = 'History Bowl';
+                        badgeClass = 'bg-warning';
+                    }
+
+                    // Highlight all search terms in the question and answer
+                    let highlightedQuestion = q.question;
+                    let highlightedAnswer = q.answer;
+                    searchTerms.forEach(term => {
+                        const regex = new RegExp(term.trim(), 'gi');
+                        highlightedQuestion = highlightedQuestion.replace(regex, match => `<mark>${match}</mark>`);
+                        highlightedAnswer = highlightedAnswer.replace(regex, match => `<mark>${match}</mark>`);
+                    });
+
+                    return `
+                        <div class="card mb-3 ${cardClass}">
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="question${index}">
+                                    <label class="form-check-label" for="question${index}">
+                                        <h6 class="card-subtitle mb-2 text-muted">
+                                            ${q.setName} 
+                                            <span class="badge ${badgeClass} ms-2">${sourceType}</span>
+                                        </h6>
+                                        <p class="card-text">${highlightedQuestion}</p>
+                                        <p class="card-text"><small class="text-muted">Answer: ${highlightedAnswer}</small></p>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
                 updateSelectedCount();
-                displaySearchResults(matches);
+                
             } catch (error) {
                 console.error('Search error:', error);
-                searchResults.innerHTML = `
+                document.getElementById('searchResults').innerHTML = `
                     <div class="alert alert-danger">
                         Error searching questions. Please try again.
-                    </div>
-                `;
+                    </div>`;
             }
+        }
+
+        function updateSelectedCount() {
+            const checkedBoxes = document.querySelectorAll('#searchResults input[type="checkbox"]:checked');
+            const count = checkedBoxes.length;
+            document.getElementById('selectedCount').textContent = `${count} question${count !== 1 ? 's' : ''} selected`;
+            
+            // Update selectedQuestions array
+            selectedQuestions = Array.from(checkedBoxes).map(checkbox => {
+                const index = checkbox.id.replace('question', '');
+                return currentQuestions[parseInt(index)];
+            });
         }
 
         // Add debounce function at the top
@@ -2344,39 +2542,59 @@
 
         let selectedQuestions = [];
 
+function updateSelectedCount() {
+    const checkedBoxes = document.querySelectorAll('#searchResults input[type="checkbox"]:checked');
+    const count = checkedBoxes.length;
+    document.getElementById('selectedCount').textContent = `${count} question${count !== 1 ? 's' : ''} selected`;
+    
+    // Update selectedQuestions array
+    selectedQuestions = Array.from(checkedBoxes).map(checkbox => {
+        const index = checkbox.id.replace('question', '');
+        return currentQuestions[parseInt(index)];
+    });
+}
+
         function initializeSelectedQuestions(matches) {
             selectedQuestions = [...matches];
             updateSelectedCount();
         }
 
-        function updateSelectedCount() {
-            const countElement = document.getElementById('selectedCount');
-            countElement.textContent = `${selectedQuestions.length} questions selected`;
-        }
 
         function toggleAllQuestions() {
-            const checkboxes = document.querySelectorAll('.question-selector');
+            const checkboxes = document.querySelectorAll('#searchResults input[type="checkbox"]');
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
             
             checkboxes.forEach(cb => {
                 cb.checked = !allChecked;
             });
             
-            selectedQuestions = allChecked ? [] : [...matches];
             updateSelectedCount();
         }
 
         function practiceSelectedQuestions() {
-            if (selectedQuestions.length === 0) return;
+            if (selectedQuestions.length === 0) {
+                alert('Please select at least one question to practice');
+                return;
+            }
             
-            // Store selected questions for practice
-            localStorage.setItem('practiceQuestions', JSON.stringify(selectedQuestions));
+            // Initialize practice state
+            practiceState = {
+                questions: selectedQuestions,
+                currentIndex: 0,
+                unseenQuestions: [...Array(selectedQuestions.length).keys()],
+                words: [],
+                wordIndex: 0,
+                interval: null,
+                isBuzzed: false,
+                speed: document.getElementById('speed')?.value || 500
+            };
             
-            // Hide search modal and show practice modal
+            // Hide results modal and show practice modal
             $('#resultsModal').modal('hide');
+            $('#practiceModal').modal('show');
             
-            // Start practice with the selected questions directly
-            startPractice(selectedQuestions);
+            // Start with first question
+            showPracticeQuestion(selectedQuestions[0]);
         }
 
         let practiceQuestionIndex = 0;
@@ -2947,44 +3165,118 @@
 
         // Add hover stats functionality
         async function showMissedQuestions() {
-            const user = window.auth.currentUser;
-            if (!user) return;
+            if (!window.auth?.currentUser) return;
             
             try {
-                const userRef = window.db.ref('users/' + user.uid);
-                const snapshot = await userRef.once('value');
-                const userData = snapshot.val();
-                
-                if (userData?.progress?.history) {
-                    const missedQuestions = userData.progress.history
-                        .filter(entry => !entry.isCorrect)
-                        .map(entry => `
-                            <div class="history-card incorrect mb-3">
-                                <div class="question-text">${entry.question}</div>
-                                <div class="answer-section">
-                                    <div class="metadata">
-                                        <span class="set-name">Set: ${entry.setName || 'Unknown'}</span>
-                                    </div>
-                                    <div>
-                                        <span class="user-answer">Your answer: ${entry.userAnswer}</span>
-                                    </div>
-                                    <div>
-                                        <span class="correct-answer">Correct answer: ${entry.answer.replace(/<\/?[^>]+(>|$)/g, '')}</span>
+                const userRef = window.db.ref('users/' + window.auth.currentUser.uid);
+                userRef.child('progress/history').once('value', (snapshot) => {
+                    const history = snapshot.val() || [];
+                    const missedQuestions = history.filter(entry => !entry.isCorrect);
+                    
+                    if (missedQuestions.length > 0) {
+                        const missedHTML = `
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <button class="btn btn-primary me-2" onclick="practiceMissedQuestions()">
+                                        Practice Selected Questions
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="toggleAllMissed()">
+                                        Toggle Selection
+                                    </button>
+                                </div>
+                                <span id="missedSelectedCount" class="text-muted"></span>
+                            </div>
+                            ${missedQuestions.map((entry, index) => `
+                                <div class="missed-question-item mb-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="missed-${index}">
+                                        <label class="form-check-label" for="missed-${index}">
+                                            <div class="question-text">${entry.question}</div>
+                                            <div class="answer-section">
+                                                <div>Your answer: ${entry.userAnswer}</div>
+                                                <div>Correct answer: ${entry.answer.replace(/<\/?[^>]+(>|$)/g, '')}</div>
+                                            </div>
+                                        </label>
                                     </div>
                                 </div>
-                            </div>
-                        `).join('');
+                            `).join('')}
+                        `;
+                        
+                        document.getElementById('missedQuestionsList').innerHTML = missedHTML;
+                        updateMissedSelectedCount();
+                    } else {
+                        document.getElementById('missedQuestionsList').innerHTML = 'No missed questions found.';
+                    }
                     
-                    document.getElementById('missedQuestionsList').innerHTML = missedQuestions || 'No missed questions found.';
-                } else {
-                    document.getElementById('missedQuestionsList').innerHTML = 'No question history available.';
-                }
-                
-                $('#missedQuestionsModal').modal('show');
+                    $('#missedQuestionsModal').modal('show');
+                });
             } catch (error) {
                 console.error("Error loading missed questions:", error);
             }
         }
+
+        function toggleAllMissed() {
+            const checkboxes = document.querySelectorAll('#missedQuestionsList input[type="checkbox"]');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+            updateMissedSelectedCount();
+        }
+
+        function updateMissedSelectedCount() {
+            const total = document.querySelectorAll('#missedQuestionsList input[type="checkbox"]').length;
+            const selected = document.querySelectorAll('#missedQuestionsList input[type="checkbox"]:checked').length;
+            document.getElementById('missedSelectedCount').textContent = `${selected}/${total} selected`;
+        }
+
+        function practiceMissedQuestions() {
+    const checkboxes = document.querySelectorAll('#missedQuestionsList input[type="checkbox"]:checked');
+    if (checkboxes.length === 0) return;
+    
+    const selectedQuestions = Array.from(checkboxes).map(cb => {
+        const questionItem = cb.closest('.missed-question-item');
+        return {
+            question: questionItem.querySelector('.question-text').textContent,
+            answer: questionItem.querySelector('.answer-section').lastElementChild.textContent.replace('Correct answer: ', ''),
+            setName: 'Missed Question'
+        };
+    });
+    
+    $('#missedQuestionsModal').modal('hide');
+    startPractice(selectedQuestions);
+}
+
+// Update the missed questions display HTML (around line 3081):
+const missedHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <button class="btn btn-primary me-2" onclick="practiceMissedQuestions()">
+                Practice Selected Questions
+            </button>
+            <button class="btn btn-secondary" onclick="toggleAllMissed()">
+                Toggle Selection
+            </button>
+        </div>
+        <span id="missedSelectedCount" class="text-muted"></span>
+    </div>
+    ${missedQuestions.map((entry, index) => `
+        <div class="missed-question-item mb-2">
+            <div class="card bg-light-red">
+                <div class="card-body">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="missed-${index}">
+                        <label class="form-check-label" for="missed-${index}">
+                            <div class="question-text">${entry.question}</div>
+                            <div class="answer-section">
+                                <div>Your answer: ${entry.userAnswer}</div>
+                                <div>Correct answer: ${entry.answer.replace(/<\/?[^>]+(>|$)/g, '')}</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('')}
+`;
 
         // Update the existing onAuthStateChanged listener to include accuracy stats
         window.auth.onAuthStateChanged(async (user) => {
@@ -3267,6 +3559,267 @@
             window.speechSynthesis.speak(speechUtterance);
         }
 
+        async function searchQBReader(searchInput, searchType) {
+            try {
+                const LIMIT = 25;
+                let allQuestions = new Set();
+                
+                // Split by commas for multiple searches
+                const searchTerms = searchInput.split(',').map(term => term.trim()).filter(term => term.length > 0);
+                
+                for (const term of searchTerms) {
+                    let offset = 0;
+                    const initialResponse = await fetch(
+                        `https://www.qbreader.org/api/query?queryString=${encodeURIComponent(term)}&questionType=tossup`
+                    );
+                    const initialData = await initialResponse.json();
+                    
+                    if (!initialData?.tossups?.count) continue;
+
+                    const totalQuestions = initialData.tossups.count;
+                    initialData.tossups.questionArray.forEach(q => allQuestions.add(JSON.stringify(q)));
+
+                    while (offset + LIMIT < totalQuestions) {
+                        offset += LIMIT;
+                        const response = await fetch(
+                            `https://www.qbreader.org/api/query?queryString=${encodeURIComponent(term)}&questionType=tossup&offset=${offset}`
+                        );
+                        const data = await response.json();
+                        data.tossups.questionArray.forEach(q => allQuestions.add(JSON.stringify(q)));
+                    }
+                }
+
+                const questions = Array.from(allQuestions).map(q => JSON.parse(q)).filter(q => {
+                    const questionText = (q.question_sanitized || q.question || '').toLowerCase();
+                    const answerText = (q.answer_sanitized || q.answer || '').toLowerCase();
+                    
+                    if (searchType === 'question') {
+                        return questionText.includes(searchInput.toLowerCase());
+                    } else if (searchType === 'answer') {
+                        return answerText.includes(searchInput.toLowerCase());
+                    }
+                    return questionText.includes(searchInput.toLowerCase()) || answerText.includes(searchInput.toLowerCase());
+                });
+
+                return questions.map(q => ({
+                    question: q.question_sanitized || q.question,
+                    answer: q.answer_sanitized || q.answer,
+                    isQBReader: true,
+                    setName: `${q.set?.name || 'Unknown Set'} (${q.set?.year || 'Unknown Year'})`
+                }));
+
+            } catch (error) {
+                console.error('QB Reader fetch error:', error);
+                return [];
+            }
+        }
+
+        function closeQBResults(event) {
+            if (event.target.classList.contains('qb-reader-overlay') || 
+                event.target.classList.contains('close-btn')) {
+                const overlay = document.querySelector('.qb-reader-overlay');
+                if (overlay) overlay.remove();
+            }
+        }
+
+        // Add escape key handler to close results
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const overlay = document.querySelector('.qb-reader-overlay');
+                if (overlay) overlay.remove();
+            }
+        });
+
+        document.getElementById('searchResults').addEventListener('change', function(e) {
+            if (e.target.type === 'checkbox') {
+                updateSelectedCount();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add checkbox change listener for search results
+            document.getElementById('searchResults').addEventListener('change', function(e) {
+                if (e.target.type === 'checkbox') {
+                    updateSelectedCount();
+                }
+            });
+            
+            // Add toggle all questions listener
+            document.getElementById('toggleAll')?.addEventListener('click', function() {
+                const checkboxes = document.querySelectorAll('#searchResults input[type="checkbox"]');
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                checkboxes.forEach(cb => cb.checked = !allChecked);
+                updateSelectedCount();
+            });
+        });
+
+        async function analyzeUserPerformance() {
+            if (!window.auth?.currentUser) return null;
+            
+            try {
+                const userRef = window.db.ref(`users/${window.auth.currentUser.uid}`);
+                const snapshot = await userRef.child('progress/history').once('value');
+                const history = snapshot.val() || [];
+                
+                const analysis = {
+                    totalQuestions: history.length,
+                    correctCount: 0,
+                    categories: {},  // Will store category stats
+                    missedQuestions: {} // Will store missed questions by category
+                };
+                
+                // Process each question in history
+                history.forEach(entry => {
+                    const category = entry.metadata?.category || 'Uncategorized';
+                    
+                    // Initialize category if not exists
+                    if (!analysis.categories[category]) {
+                        analysis.categories[category] = {
+                            total: 0,
+                            correct: 0,
+                            successRate: 0
+                        };
+                    }
+                    if (!analysis.missedQuestions[category]) {
+                        analysis.missedQuestions[category] = [];
+                    }
+                    
+                    // Update stats
+                    analysis.categories[category].total++;
+                    if (entry.isCorrect) {
+                        analysis.categories[category].correct++;
+                        analysis.correctCount++;
+                    } else {
+                        // Store missed question
+                        analysis.missedQuestions[category].push({
+                            question: entry.question,
+                            answer: entry.answer,
+                            userAnswer: entry.userAnswer,
+                            setName: entry.setName
+                        });
+                    }
+                    
+                    // Calculate success rate
+                    analysis.categories[category].successRate = 
+                        (analysis.categories[category].correct / analysis.categories[category].total) * 100;
+                });
+                
+                // Sort categories by success rate
+                const sortedCategories = Object.entries(analysis.categories)
+                    .filter(([_, stats]) => stats.total >= 5) // Only categories with 5+ questions
+                    .sort((a, b) => a[1].successRate - b[1].successRate) // Sort by success rate ascending
+                    .reduce((acc, [category, stats]) => {
+                        acc[category] = {
+                            ...stats,
+                            missedQuestions: analysis.missedQuestions[category] || []
+                        };
+                        return acc;
+                    }, {});
+                
+                analysis.sortedCategories = sortedCategories;
+                return analysis;
+            } catch (error) {
+                console.error('Error analyzing performance:', error);
+                return null;
+            }
+        }
+
+        function displayPerformanceAnalysis(analysis) {
+            if (!analysis) return;
+            
+            const analysisHTML = `
+                <div class="analysis-container">
+                    <div class="overall-stats mb-4">
+                        <h6>Overall Performance</h6>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <p class="mb-2">Success Rate: ${((analysis.correctCount / analysis.totalQuestions) * 100).toFixed(1)}%</p>
+                                <p class="mb-0">Total Questions Answered: ${analysis.totalQuestions}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="categories-section">
+                        <h6>Category Performance</h6>
+                        ${Object.entries(analysis.sortedCategories).map(([category, stats]) => `
+                            <div class="category-card mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title d-flex justify-content-between">
+                                            <span>${category}</span>
+                                            <span class="badge ${stats.successRate < 60 ? 'bg-danger' : 'bg-success'}">
+                                                ${stats.successRate.toFixed(1)}%
+                                            </span>
+                                        </h6>
+                                        <p class="mb-2">Questions: ${stats.total} (${stats.correct} correct)</p>
+                                        ${stats.missedQuestions.length > 0 ? `
+                                            <div class="missed-questions mt-3">
+                                                <button class="btn btn-sm btn-outline-primary mb-2" 
+                                                    onclick="practiceCategory('${category}')">
+                                                    Practice Missed Questions
+                                                </button>
+                                                <div class="missed-list small">
+                                                    ${stats.missedQuestions.slice(0, 3).map(q => `
+                                                        <div class="missed-item">
+                                                            <strong>Q:</strong> ${q.question.substring(0, 100)}...
+                                                            <br>
+                                                            <strong>A:</strong> ${q.answer}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('analysisContent').innerHTML = analysisHTML;
+        }
+
+        function practiceCategory(category) {
+            const analysis = JSON.parse(localStorage.getItem('currentAnalysis'));
+            if (!analysis?.sortedCategories[category]?.missedQuestions) return;
+            
+            const missedQuestions = analysis.sortedCategories[category].missedQuestions;
+            selectedQuestions = missedQuestions;
+            
+            $('#analysisModal').modal('hide');
+            practiceSelectedQuestions();
+        }
+
+        window.auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                const analysis = await analyzeUserPerformance();
+                displayPerformanceAnalysis(analysis);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add analysis button click handler
+            document.getElementById('showAnalysis').addEventListener('click', async () => {
+                const analysis = await analyzeUserPerformance();
+                if (analysis) {
+                    displayPerformanceAnalysis(analysis);
+                    $('#analysisModal').modal('show');
+                } else {
+                    alert('Please sign in to view your performance analysis.');
+                }
+            });
+        });
+
+        async function showPerformanceAnalysis() {
+            const analysis = await analyzeUserPerformance();
+            if (analysis) {
+                displayPerformanceAnalysis(analysis);
+                $('#analysisModal').modal('show');
+            } else {
+                alert('Please sign in to view your performance analysis.');
+            }
+        }
     </script>
 
     <!-- Search Modal -->
@@ -3291,6 +3844,12 @@
                         </label>
                         <label class="btn btn-outline-primary">
                             <input type="radio" name="searchType" value="answer"> Answers Only
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="includeQbreader" checked>
+                        <label class="form-check-label" for="includeQbreader">
+                            Include QBreader Results
                         </label>
                     </div>
                     <button class="btn btn-primary mt-3" onclick="searchQuestions()">Search</button>
@@ -3433,6 +3992,24 @@
                 </div>
                 <div class="modal-body">
                     <div id="missedQuestionsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="analysisSection" class="mt-4"></div>
+
+
+    <!-- Add Analysis Modal -->
+    <div class="modal fade" id="analysisModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Performance Analysis</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="analysisContent"></div>
                 </div>
             </div>
         </div>
